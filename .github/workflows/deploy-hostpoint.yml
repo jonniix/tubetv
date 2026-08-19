@@ -1,0 +1,85 @@
+name: Deploy su Hostpoint
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hostpoint-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || vars.HOSTPOINT_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      HOSTPOINT_HOST: ${{ secrets.HOSTPOINT_HOST }}
+      HOSTPOINT_USER: ${{ secrets.HOSTPOINT_USER }}
+      HOSTPOINT_PORT: ${{ secrets.HOSTPOINT_PORT }}
+      HOSTPOINT_PATH: ${{ secrets.HOSTPOINT_PATH }}
+      HOSTPOINT_SSH_KEY: ${{ secrets.HOSTPOINT_SSH_KEY }}
+
+    steps:
+      - name: Scarica il codice
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Controlla il codice pubblicabile
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          php schedule-engine-tests.php
+          node _official_bot_check.js
+          node live-ui-tests.js
+          node tv-experience-tests.js
+          while IFS= read -r -d '' file; do
+            php -l "$file" >/dev/null
+          done < <(find api -type f -name '*.php' -print0)
+
+      - name: Prepara il collegamento SSH
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : "${HOSTPOINT_HOST:?Secret HOSTPOINT_HOST mancante}"
+          : "${HOSTPOINT_USER:?Secret HOSTPOINT_USER mancante}"
+          : "${HOSTPOINT_PATH:?Secret HOSTPOINT_PATH mancante}"
+          : "${HOSTPOINT_SSH_KEY:?Secret HOSTPOINT_SSH_KEY mancante}"
+          HOSTPOINT_PORT="${HOSTPOINT_PORT:-22}"
+          echo "HOSTPOINT_PORT=$HOSTPOINT_PORT" >> "$GITHUB_ENV"
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$HOSTPOINT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/hostpoint_deploy"
+          chmod 600 "$HOME/.ssh/hostpoint_deploy"
+          ssh-keyscan -p "$HOSTPOINT_PORT" -H "$HOSTPOINT_HOST" >> "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Pubblica l'applicazione
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rsync -az --checksum --itemize-changes \
+            --exclude='/.git/' \
+            --exclude='/.github/' \
+            --exclude='/.env' \
+            --exclude='/.env.example' \
+            --exclude='/data/' \
+            --exclude='/private/' \
+            --exclude='/node_modules/' \
+            --exclude='/README.md' \
+            --exclude='/package.json' \
+            --exclude='/package-lock.json' \
+            --exclude='/transform.py' \
+            --exclude='/_*.js' \
+            --exclude='/*-tests.php' \
+            --exclude='/*-tests.js' \
+            -e "ssh -i $HOME/.ssh/hostpoint_deploy -p $HOSTPOINT_PORT" \
+            ./ "${HOSTPOINT_USER}@${HOSTPOINT_HOST}:${HOSTPOINT_PATH%/}/"
+
+      - name: Riepilogo
+        run: echo "TubeTV pubblicato su Hostpoint senza modificare data/, private/ o .env."
