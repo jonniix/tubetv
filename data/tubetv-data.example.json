@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "videos": [],
+  "channels": [],
+  "slots": [],
+  "schedule": [],
+  "publicLiveSchedule": {
+    "liveQueue": []
+  },
+  "liveQueue": [],
+  "liveState": {},
+  "botState": {
+    "serverPublishStatus": "IN_ATTESA",
+    "serverPublishMessage": "INSTALLAZIONE_NUOVA"
+  },
+  "botHistory": []
+}

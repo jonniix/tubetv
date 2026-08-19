@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#06080d">
+  <title>TubeTV per TV</title>
+  <link rel="manifest" href="tv-manifest.webmanifest?v=1">
+  <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png?v=12">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=12">
+  <style>
+    :root{color-scheme:dark;--bg:#06080d;--panel:rgba(15,19,28,.86);--line:rgba(255,255,255,.1);--muted:#9ca7b8;--gold:#ffb703;--orange:#fb8500}
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;background:var(--bg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff;overflow:hidden}
+    body:before{content:"";position:fixed;inset:-30%;background:radial-gradient(circle at 18% 22%,rgba(255,183,3,.14),transparent 28%),radial-gradient(circle at 82% 72%,rgba(39,94,254,.13),transparent 30%);pointer-events:none}
+    .pair-screen{position:relative;min-height:100%;display:grid;grid-template-rows:auto 1fr auto;padding:clamp(24px,4vw,64px);gap:28px}
+    .brand{display:flex;align-items:center;font-size:clamp(23px,2vw,35px);font-weight:950;letter-spacing:-.045em}.brand span{color:#ef233c}.brand em{font-style:normal;color:#fff}
+    .layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(360px,.8fr);align-items:center;gap:clamp(36px,7vw,120px);width:min(1500px,100%);margin:auto}
+    .eyebrow{display:inline-flex;align-items:center;gap:10px;color:#ffd166;font-weight:800;letter-spacing:.1em;text-transform:uppercase;font-size:13px}.dot{width:8px;height:8px;border-radius:50%;background:#40e38a;box-shadow:0 0 18px #40e38a}
+    h1{font-size:clamp(45px,5.4vw,88px);line-height:.98;letter-spacing:-.06em;margin:18px 0 22px;max-width:900px}p{color:var(--muted);font-size:clamp(17px,1.4vw,23px);line-height:1.55;max-width:760px;margin:0}.steps{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}.step{display:flex;align-items:center;gap:10px;padding:11px 15px;border:1px solid var(--line);background:rgba(255,255,255,.035);border-radius:999px;font-weight:750;color:#dce2ec}.step b{display:grid;place-items:center;width:25px;height:25px;background:#fff;color:#0a0c10;border-radius:50%;font-size:12px}
+    .card{position:relative;border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(24px);border-radius:34px;padding:30px;box-shadow:0 32px 90px rgba(0,0,0,.42);text-align:center}.card:before{content:"";position:absolute;inset:-1px;border-radius:34px;padding:1px;background:linear-gradient(145deg,rgba(255,183,3,.48),transparent 42%,rgba(255,255,255,.15));mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;pointer-events:none}
+    .qr-shell{width:min(290px,60vh);aspect-ratio:1;margin:0 auto 22px;padding:16px;background:#fff;border-radius:24px;display:grid;place-items:center}.qr-shell canvas,.qr-shell img{width:100%!important;height:100%!important}.code-label{font-size:13px;text-transform:uppercase;letter-spacing:.13em;color:var(--muted);font-weight:800}.code{font-size:clamp(34px,4vw,58px);letter-spacing:.2em;font-weight:950;margin:8px 0 4px;padding-left:.2em}.timer{font-variant-numeric:tabular-nums;color:#ffd166;font-weight:800}.status{min-height:24px;margin-top:12px;color:var(--muted);font-size:14px}.spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin-right:8px}@keyframes spin{to{transform:rotate(360deg)}}
+    footer{display:flex;align-items:center;justify-content:space-between;gap:20px;color:#758093;font-size:13px}.secure{display:flex;align-items:center;gap:8px}.secure svg{width:17px}
+    .app-shell{display:none;position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;z-index:100;background:#05070b;overflow:hidden}.app-shell.active{display:block}.app-shell iframe{position:absolute;inset:0;display:block;width:100vw;height:100%;border:0;background:#05070b;opacity:1}.tv-boot{position:absolute;inset:0;z-index:102;display:grid;place-items:center;background:#05070b;color:#9ca7b8;text-align:center;font:700 15px system-ui}.tv-boot img{display:block;width:82px;height:82px;margin:0 auto 18px;border-radius:22px}.tv-boot b{display:block;margin-bottom:7px;color:#fff;font-size:24px}.app-shell.frame-loaded .tv-boot{display:none}.connected-pill{position:fixed;right:24px;bottom:20px;z-index:104;display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:999px;background:rgba(5,9,14,.76);border:1px solid rgba(255,255,255,.13);backdrop-filter:blur(14px);font:700 12px/1 system-ui;color:#c9d2df;opacity:0;pointer-events:none;transition:opacity .25s}.app-shell.command-received .connected-pill{opacity:.82}.connected-pill .dot{width:7px;height:7px}.repair-remote{position:fixed;left:20px;top:18px;z-index:106;display:flex;align-items:center;gap:9px;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:10px 15px;background:rgba(4,7,12,.72);backdrop-filter:blur(14px);color:#fff;font:800 12px/1 system-ui;cursor:pointer;opacity:.68;transition:opacity .25s,background .2s,transform .2s}.repair-remote:hover,.repair-remote:focus{opacity:1;background:rgba(18,23,33,.96);transform:translateY(-1px);outline:3px solid #ffb703;outline-offset:3px}.repair-remote.hidden-control{opacity:0;background:transparent;outline:0;transform:none}.repair-remote svg{width:17px;height:17px;stroke:#ffca3a}@media(max-width:700px){.repair-remote{left:10px;top:10px;padding:9px 11px}.repair-remote span{display:none}}
+    .tv-boot img{display:none}.tv-boot b{font-size:clamp(32px,5vw,58px);letter-spacing:-.055em;margin-bottom:10px}.tv-boot small{display:block;margin-top:8px;color:#778396}
+    .fatal{color:#ff8b8b}.retry{margin-top:14px;border:0;border-radius:999px;padding:11px 17px;background:linear-gradient(135deg,var(--gold),var(--orange));color:#171009;font-weight:900;cursor:pointer}
+    .install-tv{position:fixed;right:clamp(24px,4vw,64px);top:clamp(24px,4vw,54px);z-index:20;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:11px 16px;background:rgba(255,255,255,.07);color:#fff;font:850 13px system-ui;cursor:pointer}.install-tv:focus{outline:3px solid #ffb703;outline-offset:3px}
+    @media(max-width:850px){.layout{grid-template-columns:1fr;text-align:center}.layout p{margin:auto}.steps{justify-content:center}.qr-shell{width:min(240px,38vh)}h1{font-size:42px}.pair-screen{padding:24px;overflow:auto}footer{display:none}}
+  </style>
+</head>
+<body>
+  <main class="pair-screen" id="pair-screen">
+    <div class="brand"><span>TUBE<em>TV</em></span></div>
+    <button class="install-tv" type="button" data-tv-install>Scarica app TV</button>
+    <section class="layout">
+      <div>
+        <div class="eyebrow"><span class="dot"></span> Pronta per il collegamento</div>
+        <h1>La tua TV,<br>il tuo palinsesto.</h1>
+        <p>Collega questa TV al tuo account TubeTV. Scansiona il QR dal telefono, conferma e usa il telecomando mobile senza inserire password sul grande schermo.</p>
+        <div class="steps"><span class="step"><b>1</b> Scansiona</span><span class="step"><b>2</b> Conferma dal telefono</span><span class="step"><b>3</b> Guarda e controlla</span></div>
+      </div>
+      <div class="card">
+        <div class="qr-shell" id="qr"></div>
+        <div class="code-label">oppure inserisci il codice</div>
+        <div class="code" id="code">------</div>
+        <div class="timer" id="timer">Creazione codice…</div>
+        <div class="status" id="status"><span class="spinner"></span>Attendo il telefono</div>
+      </div>
+    </section>
+    <footer><span>tubetv.ch/tv</span><span class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg> Collegamento cifrato · il codice scade automaticamente</span></footer>
+  </main>
+  <section class="app-shell" id="app-shell"><div class="tv-boot"><div><b><span style="color:#ef233c">TUBE</span><span style="color:#fff">TV</span></b><span id="tv-boot-status">Preparazione esperienza TV…</span><small id="tv-boot-detail">Attendo l'avvio dell'interfaccia</small><button class="retry" id="tv-app-retry" type="button" style="display:none">Ricarica TV</button></div></div><button class="repair-remote" id="repair-remote" type="button" aria-label="Associa nuovamente il telecomando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><polyline points="20 4 20 11 13 11"/><rect x="8" y="6" width="7" height="13" rx="2"/></svg><span>Associa telecomando</span></button><div class="connected-pill"><span class="dot"></span> Telecomando collegato</div><iframe id="tv-app" title="TubeTV"></iframe></section>
+  <script src="assets/vendor/qrcode.min.js"></script>
+  <script src="tv-pwa.js?v=2"></script>
+  <script>
+  (function(){
+    var pair=null,countdown=null,pollTimer=null,commandTimer=null,repairTimer=null,remoteCodeTimer=null,frameWatchdog=null,lastSeq=0,frameReady=false,pendingCommands=[],liteMode=false;
+    var path=String(location.pathname||'/'),base=path.slice(0,path.lastIndexOf('/')+1),api=base+'api/';
+    var origin=location.protocol+'//'+location.host;
+    var storage={id:'tubetv_tv_browser_id',device:'tubetv_tv_device_id',token:'tubetv_tv_device_token',seq:'tubetv_tv_last_command_seq'};
+    function el(id){return document.getElementById(id)}
+    function storeGet(key){try{return window.localStorage?localStorage.getItem(key)||'':''}catch(e){return''}}
+    function storeSet(key,value){try{if(window.localStorage)localStorage.setItem(key,value)}catch(e){}}
+    function storeRemove(key){try{if(window.localStorage)localStorage.removeItem(key)}catch(e){}}
+    function hexByte(value){var text=Number(value).toString(16);return text.length<2?'0'+text:text}
+    function randomId(){var out='',i,bytes;try{bytes=new Uint8Array(24);(window.crypto||window.msCrypto).getRandomValues(bytes);for(i=0;i<bytes.length;i++)out+=hexByte(bytes[i]);return out}catch(e){for(i=0;i<48;i++)out+='0123456789abcdef'.charAt(Math.floor(Math.random()*16));return out}}
+    var browserId=storeGet(storage.id)||randomId();storeSet(storage.id,browserId);
+    function request(url,options,onSuccess,onFailure){
+      var xhr=new XMLHttpRequest(),method=options&&options.method?options.method:'GET';
+      xhr.open(method,url,true);xhr.withCredentials=true;xhr.setRequestHeader('Accept','application/json');if(method!=='GET')xhr.setRequestHeader('Content-Type','application/json');
+      xhr.onreadystatechange=function(){if(xhr.readyState!==4)return;var data={};try{data=xhr.responseText?JSON.parse(xhr.responseText):{}}catch(e){data={error:'INVALID_RESPONSE'}}if(xhr.status>=200&&xhr.status<300&&data.ok!==false)onSuccess(data);else onFailure({message:data.error||'HTTP_'+xhr.status,status:xhr.status})};
+      xhr.onerror=function(){onFailure({message:'NETWORK_ERROR',status:0})};xhr.send(options&&options.body?options.body:null);
+    }
+    function drawQr(url){var root=el('qr');root.innerHTML='';if(window.QRCode){new QRCode(root,{text:url,width:258,height:258,colorDark:'#05070b',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M})}else{root.innerHTML='<div style="color:#111;font:800 15px system-ui;padding:18px">Generatore QR non caricato<br><small style="word-break:break-all">'+url.replace(/</g,'&lt;')+'</small></div>'}}
+    function stopPairing(){clearInterval(countdown);clearTimeout(pollTimer)}
+    function createPair(){stopPairing();el('status').className='status';el('status').innerHTML='<span class="spinner"></span>Creazione collegamento…';request(api+'tv-pair.php',{method:'POST',body:JSON.stringify({action:'create',deviceId:browserId,deviceName:'TubeTV · '+(navigator.userAgent.indexOf('SmartTV')>=0?'Smart TV':'TV Browser')})},function(data){pair=data;el('code').textContent=data.code;var url=origin+base+'tv-connect.html?pair='+encodeURIComponent(data.pairId)+'&code='+encodeURIComponent(data.code);drawQr(url);tick();countdown=setInterval(tick,1000);poll()},function(error){var detail=error.status===404?'API TV non trovata sul server.':error.status===0?'Il TV Box non riesce a raggiungere il server.':'Errore API '+error.status+'.';showFatal('Impossibile creare il codice. '+detail)})}
+    function tick(){if(!pair)return;var left=Math.max(0,Math.ceil((new Date(pair.expiresAt).getTime()-(new Date()).getTime())/1000)),seconds=String(left%60);if(seconds.length<2)seconds='0'+seconds;el('timer').textContent=left?'Codice valido per '+Math.floor(left/60)+':'+seconds:'Codice scaduto';if(!left)createPair()}
+    function poll(){if(!pair)return;request(api+'tv-pair.php',{method:'POST',body:JSON.stringify({action:'status',pairId:pair.pairId,secret:pair.secret})},function(data){if(data.status==='paired'){storeSet(storage.device,data.deviceId);storeSet(storage.token,data.deviceToken);storeRemove(storage.seq);lastSeq=0;stopPairing();launch(data.deviceId,data.deviceToken);return}el('status').innerHTML='<span class="spinner"></span>Attendo la conferma dal telefono';pollTimer=setTimeout(poll,1800)},function(error){if(error.message==='PAIR_INVALID')createPair();else pollTimer=setTimeout(poll,2500)})}
+    function deliverCommand(command,payload){var frame=el('tv-app');if(!frameReady||!frame.contentWindow){pendingCommands.push({command:command,payload:payload||{}});return}frame.contentWindow.postMessage({type:'tubetv-remote',command:command,payload:payload||{}},origin);var shell=el('app-shell');shell.classList.add('command-received');clearTimeout(shell._pillTimer);shell._pillTimer=setTimeout(function(){shell.classList.remove('command-received')},1300)}
+    function markFrameReady(){if(frameReady)return;frameReady=true;clearTimeout(frameWatchdog);el('app-shell').classList.add('frame-loaded');while(pendingCommands.length){var queued=pendingCommands.shift();deliverCommand(queued.command,queued.payload)}try{el('tv-app').focus()}catch(e){}}
+    function frameLoaded(){markFrameReady()}
+    function loadTvExperience(mode){liteMode=mode==='performance';frameReady=false;pendingCommands=[];clearTimeout(frameWatchdog);el('app-shell').classList.remove('frame-loaded');el('tv-boot-status').textContent='Preparazione esperienza TV…';el('tv-boot-detail').textContent='Attendo l’avvio dell’interfaccia';el('tv-app-retry').style.display='none';var frame=el('tv-app');frame.setAttribute('allow','autoplay; fullscreen; picture-in-picture');frame.onload=frameLoaded;frame.setAttribute('src',base+'tv-lite.html?tvdevice=1&mode='+encodeURIComponent(mode||'standard')+'&ts='+Date.now());frameWatchdog=setTimeout(function(){if(frameReady)return;el('tv-boot-status').textContent='La TV non ha completato l’avvio';el('tv-boot-detail').textContent='La schermata non resterà più nera: prova a ricaricare';el('tv-app-retry').style.display='inline-flex'},12000)}
+    function startLiteMode(){loadTvExperience('performance')}
+    function startFullMode(){loadTvExperience('standard')}
+    function showRepairButton(){var button=el('repair-remote');button.classList.remove('hidden-control');clearTimeout(repairTimer);repairTimer=setTimeout(function(){button.classList.add('hidden-control')},10000)}
+    function launch(deviceId,token){stopPairing();clearTimeout(commandTimer);storeSet(storage.device,deviceId);storeSet(storage.token,token);location.replace(base+'tv-lite.html?tvdevice=1&mode=performance&standalone=1&ts='+Date.now())}
+    function hideRemoteCode(){clearTimeout(remoteCodeTimer);remoteCodeTimer=null;var box=el('remote-code-overlay');if(box)box.remove()}
+    function showRemoteCode(payload){hideRemoteCode();var box=document.createElement('div');box.id='remote-code-overlay';box.style.cssText='position:fixed;inset:0;z-index:300;display:grid;place-items:center;background:rgba(0,0,0,.78);font-family:Arial;color:#fff;text-align:center';box.innerHTML='<div style="padding:38px 48px;border:1px solid #ffffff2b;border-radius:28px;background:#10141d"><div style="font-size:18px;color:#aeb8c8">Codice telecomando</div><div style="font-size:72px;font-weight:950;letter-spacing:.18em;padding-left:.18em;margin:12px 0">'+String(payload&&payload.code||'----')+'</div><small>Inseriscilo sul telefono · valido 3 minuti</small></div>';document.body.appendChild(box);var delay=Math.max(1000,Math.min(180000,(Number(payload&&payload.expiresAt)||0)*1000-Date.now()));remoteCodeTimer=setTimeout(hideRemoteCode,delay)}
+    function pollCommands(deviceId,token){request(api+'tv-command.php',{method:'POST',body:JSON.stringify({deviceId:deviceId,token:token,after:lastSeq})},function(data){var commands=data.commands||[],i,item;for(i=0;i<commands.length;i++){item=commands[i];lastSeq=Math.max(lastSeq,Number(item.seq)||0);storeSet(storage.seq,String(lastSeq));showRepairButton();if(item.command==='REMOTE_CODE')showRemoteCode(item.payload||{});else if(item.command==='REMOTE_PAIRED')hideRemoteCode();else if(item.command==='TV_LITE'){if(liteMode)startFullMode();else startLiteMode()}else deliverCommand(item.command,item.payload||{})}commandTimer=setTimeout(function(){pollCommands(deviceId,token)},650)},function(error){if(error.message==='TV_AUTH_INVALID'){storeRemove(storage.device);storeRemove(storage.token);storeRemove(storage.seq);location.reload();return}commandTimer=setTimeout(function(){pollCommands(deviceId,token)},1800)})}
+    function showFatal(message){el('code').textContent='------';el('timer').textContent='Collegamento non disponibile';el('status').className='status fatal';el('status').innerHTML=message+'<br><button class="retry" onclick="location.reload()">Riprova</button>'}
+    function restartPairing(){clearTimeout(commandTimer);clearTimeout(repairTimer);hideRemoteCode();stopPairing();pair=null;frameReady=false;pendingCommands=[];lastSeq=0;storeRemove(storage.device);storeRemove(storage.token);storeRemove(storage.seq);var frame=el('tv-app');try{frame.onload=null;frame.setAttribute('src','about:blank')}catch(e){}el('app-shell').className='app-shell';el('pair-screen').style.display='grid';document.body.style.overflow='hidden';el('code').textContent='------';el('timer').textContent='Creo un nuovo codice';el('status').className='status';el('status').innerHTML='<span class="spinner"></span>Nuova associazione…';createPair()}
+    function resume(deviceId,token){request(api+'tv-pair.php',{method:'POST',body:JSON.stringify({action:'resume',deviceId:deviceId,deviceToken:token})},function(){launch(deviceId,token)},function(){storeRemove(storage.device);storeRemove(storage.token);createPair()})}
+    el('repair-remote').onclick=function(){if(this.classList.contains('hidden-control')){showRepairButton();return}restartPairing()};
+    el('tv-app-retry').onclick=function(){loadTvExperience(liteMode?'performance':'standard')};
+    window.addEventListener('message',function(event){if(event.origin!==origin||event.source!==el('tv-app').contentWindow)return;var data=event.data||{};if(data.type==='tubetv-tv-player'&&data.state==='tv-ready')markFrameReady()});
+    el('repair-remote').onmouseenter=showRepairButton;el('repair-remote').onfocus=showRepairButton;
+    var savedDevice=storeGet(storage.device),savedToken=storeGet(storage.token);if(savedDevice&&savedToken)resume(savedDevice,savedToken);else createPair();
+  }());
+  </script>
+</body>
+</html>

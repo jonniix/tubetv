@@ -1,0 +1,23 @@
+.env
+node_modules/
+
+# Dati privati: utenti, credenziali IPTV, token e cache.
+private/*
+!private/.htaccess
+
+# Database e stato runtime generati dall'Admin e dal Bot.
+data/*
+!data/README.md
+!data/tubetv-data.example.json
+
+# Esportazioni e copie locali di produzione.
+/tubetv-data*.json
+*.bak
+
+# File temporanei e log locali.
+*.lock
+*.tmp
+*.log
+
+# Appunti di sviluppo locali, non necessari all'applicazione.
+super_prompt.txt
