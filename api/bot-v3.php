@@ -13,7 +13,7 @@ require_once __DIR__ . '/bot-v3-engine.php';
 function v3_config(): array { $p = V3_ROOT . '/private/config.php'; $c = is_file($p) ? include $p : []; return is_array($c) ? $c : []; }
 function v3_auth(): bool {
     $c = v3_config(); $token = trim((string)($c['TUBETV_ADMIN_TOKEN'] ?? $c['ADMIN_TOKEN'] ?? ''));
-    if ($token === '') return true;
+    if ($token === '') return false;
     $given = trim((string)($_SERVER['HTTP_X_TUBETV_ADMIN'] ?? $_GET['token'] ?? ''));
     return $given !== '' && hash_equals($token, $given);
 }

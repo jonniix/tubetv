@@ -539,6 +539,7 @@ label:has(#bot-auto-toggle){
   </div>
   <div class="nav-links">
     <span id="auto-publish-badge" style="display:none;font-size:.73rem;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);align-items:center;gap:4px;letter-spacing:.3px;"></span>
+    <button id="admin-security-token-btn" class="btn-add" onclick="configureAdminToken()" style="font-size:.78rem;background:rgba(124,58,237,.14);border-color:rgba(124,58,237,.35);">🔒 Token Admin</button>
     <a href="index.html" style="color:var(--muted);font-size:.82rem;text-decoration:none;padding:6px 12px;border:1px solid var(--border);border-radius:6px;transition:border-color .2s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Sito pubblico</a>
     <button class="btn-add" onclick="switchAdmin('publish',null);switchView('admin')" style="font-size:.82rem;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Esporta</button>
   </div>
@@ -2284,20 +2285,47 @@ const GLOBAL_PLAYER_POLICY = {
   languageRetryDelayMs: 500
 };
 
-function getAdminAuthHeaders(){
-  const headers = {'Content-Type':'application/json'};
+function getStoredAdminToken(){
   const keys = ['tubetv_admin_token','tutv_admin_token','admin_token','bot_admin_token'];
   for(const key of keys){
     try {
       const token = String(localStorage.getItem(key) || '').trim();
-      if(token){
-        headers['X-TubeTV-Admin'] = token;
-        break;
-      }
+      if(token)return token;
     } catch(e) {}
   }
+  return '';
+}
+
+function updateAdminSecurityBadge(){
+  const button=document.getElementById('admin-security-token-btn');
+  if(!button)return;
+  const configured=!!getStoredAdminToken();
+  button.textContent=configured?'🔐 Token configurato':'🔒 Inserisci token';
+  button.style.borderColor=configured?'rgba(52,211,153,.5)':'rgba(248,113,113,.5)';
+  button.style.color=configured?'#86efac':'#fca5a5';
+}
+
+function configureAdminToken(){
+  const hadToken=!!getStoredAdminToken();
+  const value=window.prompt(hadToken?'Incolla il nuovo token Admin. Lascia vuoto per rimuovere quello salvato in questo dispositivo.':'Incolla il token Admin fornito dal server:','');
+  if(value===null)return;
+  const token=String(value).trim();
+  try{
+    for(const key of ['tubetv_admin_token','tutv_admin_token','admin_token','bot_admin_token'])localStorage.removeItem(key);
+    if(token)localStorage.setItem('tubetv_admin_token',token);
+  }catch(error){alert('Impossibile salvare il token nel browser: '+error.message);return;}
+  updateAdminSecurityBadge();
+  alert(token?'Token Admin salvato soltanto in questo browser.':'Token Admin rimosso da questo browser.');
+}
+
+function getAdminAuthHeaders(){
+  const headers = {'Content-Type':'application/json'};
+  const token=getStoredAdminToken();
+  if(token)headers['X-TubeTV-Admin']=token;
   return headers;
 }
+
+setTimeout(updateAdminSecurityBadge,0);
 
 let _iptvAdminLoaded=false;
 

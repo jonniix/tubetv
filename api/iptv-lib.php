@@ -86,7 +86,7 @@ function iptv_header(string $wanted): string {
 
 function iptv_require_admin(): void {
     $expected = iptv_admin_token();
-    if ($expected === '') return;
+    if ($expected === '') iptv_json(['ok' => false, 'error' => 'ADMIN_TOKEN_NOT_CONFIGURED'], 503);
     $provided = iptv_header('X-TubeTV-Admin');
     if ($provided === '' || !hash_equals($expected, $provided)) iptv_json(['ok' => false, 'error' => 'UNAUTHORIZED'], 401);
 }
