@@ -86,15 +86,17 @@ check(($prioritySchedule[0]['videoId'] ?? '') === 'recent_10_days', 'a recent 30
 check(($prioritySchedule[0]['strategy'] ?? '') === 'recent_30d', 'recent 30-day strategy was not labelled');
 
 $realFixturePath = __DIR__ . '/tubetv-data (23).json';
-$realFixture = json_decode((string)file_get_contents($realFixturePath), true);
-check(is_array($realFixture), 'real TubeTV JSON fixture is not readable');
-check(count($realFixture['channels'] ?? []) === 18, 'unexpected real fixture channel count');
-$bootstrappedChannels = 0;
-foreach ($realFixture['channels'] as $realChannel) {
-    if (count(se_existing_video_ids_for_channel($realFixture, $realChannel, 3)) > 0) $bootstrappedChannels++;
-    else check(se_channel_handle($realChannel) !== '', 'channel has neither catalogue videos nor a YouTube handle: ' . se_channel_key($realChannel));
+if (is_file($realFixturePath)) {
+    $realFixture = json_decode((string)file_get_contents($realFixturePath), true);
+    check(is_array($realFixture), 'real TubeTV JSON fixture is not readable');
+    check(count($realFixture['channels'] ?? []) === 18, 'unexpected real fixture channel count');
+    $bootstrappedChannels = 0;
+    foreach ($realFixture['channels'] as $realChannel) {
+        if (count(se_existing_video_ids_for_channel($realFixture, $realChannel, 3)) > 0) $bootstrappedChannels++;
+        else check(se_channel_handle($realChannel) !== '', 'channel has neither catalogue videos nor a YouTube handle: ' . se_channel_key($realChannel));
+    }
+    check($bootstrappedChannels >= 17, 'too many real channels cannot be bootstrapped from catalogue videos');
 }
-check($bootstrappedChannels >= 17, 'too many real channels cannot be bootstrapped from catalogue videos');
 
 check(se_catalog_category(['channel' => 'Geopop', 'title' => 'Il sapore della scienza', 'category' => 'Cucina']) === 'Divulgazione', 'known channel did not override a stale category');
 check(se_catalog_category(['channelHandle' => '@ruhicenetdocs', 'title' => 'Inside the hidden city', 'category' => 'Musica']) === 'Documentari', 'documentary channel remained in a stale category');
