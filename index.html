@@ -374,6 +374,12 @@ nav .nav-links button:hover, nav .nav-links button.active { color: var(--text); 
 .live-top-copy h1 { margin: 0; font-family: 'Bebas Neue', sans-serif; font-size: 1.55rem; letter-spacing: .9px; display: flex; align-items: center; gap: .45rem; line-height: 1; white-space: nowrap; }
 .live-top-copy p { margin: 0; color: rgba(255,255,255,.64); font-size: .75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .live-onair-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(230,57,70,.25); background: rgba(230,57,70,.1); color: #ffd6da; font-size: .7rem; font-weight: 800; letter-spacing: .55px; text-transform: uppercase; white-space: nowrap; }
+.live-top-actions { display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0; }
+.live-channel-tabs { display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px; }
+.live-channel-tabs::-webkit-scrollbar { display:none; }
+.live-channel-tab { border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.045);color:rgba(255,255,255,.7);border-radius:999px;padding:7px 11px;font-size:.68rem;font-weight:800;white-space:nowrap;cursor:pointer;transition:.18s ease; }
+.live-channel-tab:hover { color:white;border-color:rgba(230,57,70,.4); }
+.live-channel-tab.active { color:white;background:linear-gradient(135deg,#e63946,#9f1239);border-color:transparent;box-shadow:0 6px 18px rgba(230,57,70,.24); }
 .live-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; padding: 12px 22px 18px; min-height: 0; overflow: hidden; }
 .live-player-col { min-height: 0; }
 .live-player-card { position: relative; height: 100%; min-height: 0; background: #000; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,.08); box-shadow: 0 24px 70px rgba(0,0,0,.45); }
@@ -1438,7 +1444,7 @@ body.mobile-menu-open { overflow: hidden; }
 .tv-episode-card.seen { opacity:.58; }
 .tv-episode-card.current { box-shadow:0 0 0 2px rgba(230,57,70,.75); }
 @media (hover:none) { .video-card:hover,.series-card:hover,.event-card:hover,.ep-card:hover { transform: none; box-shadow: none; } .play-overlay { opacity: 1; background: rgba(0,0,0,.18); } }
-@media (max-width: 900px) { #view-live.active { height: auto; overflow: visible; } .live-top-bar { padding: 72px 16px 0; align-items: flex-start; flex-wrap: wrap; } .live-top-copy { width: 100%; flex-wrap: wrap; gap: 6px 12px; } .live-top-copy p { white-space: normal; } .live-main { grid-template-columns: 1fr; padding: 10px 16px 20px; overflow: visible; } .live-player-card { height: auto; min-height: 0; } .live-player-wrap { min-height: 240px; aspect-ratio: 16/9; } .live-overlay-content { left: 16px; right: 16px; bottom: 16px; } .live-current-title { font-size: 1.4rem; } .live-next-line { white-space: normal; } .live-sched-col { height: auto; } .live-sched-scroll { height: auto; max-height: 340px; } .eco-box { grid-template-columns: 1fr; } .eco-thumb { aspect-ratio: 16/9; } }
+@media (max-width: 900px) { #view-live.active { height: auto; overflow: visible; } .live-top-bar { padding: 72px 16px 0; align-items: flex-start; flex-wrap: wrap; } .live-top-copy { width: 100%; flex-wrap: wrap; gap: 6px 12px; } .live-top-copy p { white-space: normal; } .live-top-actions { width:100%;justify-content:space-between; } .live-channel-tabs { flex:1; } .live-main { grid-template-columns: 1fr; padding: 10px 16px 20px; overflow: visible; } .live-player-card { height: auto; min-height: 0; } .live-player-wrap { min-height: 240px; aspect-ratio: 16/9; } .live-overlay-content { left: 16px; right: 16px; bottom: 16px; } .live-current-title { font-size: 1.4rem; } .live-next-line { white-space: normal; } .live-sched-col { height: auto; } .live-sched-scroll { height: auto; max-height: 340px; } .eco-box { grid-template-columns: 1fr; } .eco-thumb { aspect-ratio: 16/9; } }
 @media (max-width: 900px) {
   .live-main {
     grid-template-columns: 1fr;
@@ -1832,10 +1838,19 @@ nav { z-index:800 !important; }
 <div class="view" id="view-live">
   <div class="live-top-bar">
     <div class="live-top-copy">
-      <h1><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg> Live <span style="color:var(--accent)">Web</span></h1>
-      <p>Palinsesto automatico TubeTV, compatto e sempre visibile anche fuori fullscreen.</p>
+      <h1><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg> <span id="live-channel-heading">Live Web</span></h1>
+      <p id="live-channel-description">Palinsesto automatico TubeTV, compatto e sempre visibile anche fuori fullscreen.</p>
     </div>
-    <div class="live-onair-pill"><span class="live-dot"></span> ON AIR 24/7</div>
+    <div class="live-top-actions">
+      <div class="live-channel-tabs" id="live-channel-tabs" aria-label="Canali Live Web">
+        <button class="live-channel-tab active" data-live-channel="main" onclick="selectWebLiveChannel('main')">Principale</button>
+        <button class="live-channel-tab" data-live-channel="live2" onclick="selectWebLiveChannel('live2')">Live 2</button>
+        <button class="live-channel-tab" data-live-channel="kids" onclick="selectWebLiveChannel('kids')">Kids</button>
+        <button class="live-channel-tab" data-live-channel="crime" onclick="selectWebLiveChannel('crime')">Crime</button>
+        <button class="live-channel-tab" data-live-channel="docu" onclick="selectWebLiveChannel('docu')">Docu</button>
+      </div>
+      <div class="live-onair-pill"><span class="live-dot"></span> ON AIR 24/7</div>
+    </div>
   </div>
   <div class="live-main">
     <div class="live-player-col">
@@ -2276,9 +2291,43 @@ function wpUpdate(id,progressSecs,durSecs){
 
 const DEFAULT_CATEGORIES=['Divulgazione','Documentari','Tecnologia','Viaggi','Cucina','Sport','Gaming','Intrattenimento','Cinema','Musica','News','Arte','Podcast','Fai da te','Generale'];
 
-let DB={videos:[],slots:[],spots:[],channels:[],palinsesto:[],schedule:[],scheduleMeta:{},scheduleArchive:{},publicLiveSchedule:{liveQueue:[]},settings:{name:'TubeTV',color:'#e63946'},categories:DEFAULT_CATEGORIES,manualEvents:[],videoAirHistory:{},videoLibrary:{},series:[],seriesEpisodes:{},topContent:[],events:[],liveQueue:[],ads:load('ads',[]),adSettings:load('ad_settings',{enabled:true,liveIntervalMinutes:10,liveBreakSeconds:10}),localAds:load('local_ads',[]),localAdsSettings:load('local_ads_settings',{}),adHistory:load('ad_history',[]),adHourState:load('ad_hour_state',{}),botHistory:load('bot_history',[]),liveRuntime:load('live_runtime',{currentVideoId:null,currentQueueId:null,actualStartDateTime:null,accumulatedDelaySeconds:0,lastTransitionAt:null,lastDelayReason:''}),lastBotRunAt:null};
+let DB={videos:[],slots:[],spots:[],channels:[],palinsesto:[],schedule:[],scheduleMeta:{},scheduleArchive:{},publicLiveSchedule:{liveQueue:[]},webLiveChannels:{},settings:{name:'TubeTV',color:'#e63946'},categories:DEFAULT_CATEGORIES,manualEvents:[],videoAirHistory:{},videoLibrary:{},series:[],seriesEpisodes:{},topContent:[],events:[],liveQueue:[],ads:load('ads',[]),adSettings:load('ad_settings',{enabled:true,liveIntervalMinutes:10,liveBreakSeconds:10}),localAds:load('local_ads',[]),localAdsSettings:load('local_ads_settings',{}),adHistory:load('ad_history',[]),adHourState:load('ad_hour_state',{}),botHistory:load('bot_history',[]),liveRuntime:load('live_runtime',{currentVideoId:null,currentQueueId:null,actualStartDateTime:null,accumulatedDelaySeconds:0,lastTransitionAt:null,lastDelayReason:''}),lastBotRunAt:null};
 window.DB = DB;
 const APP=DB;
+const WEB_LIVE_DEFINITIONS={
+  main:{name:'Live Web',description:'Palinsesto intelligente TubeTV con fasce orarie e programmazione dinamica.'},
+  live2:{name:'Live Web 2',description:'Rotazione 24/7 delle fonti assegnate, con priorità alle novità.'},
+  kids:{name:'Live Web Kids',description:'Canale lineare Kids sempre attivo con contenuti recenti.'},
+  crime:{name:'Live Web Crime',description:'Crime 24/7: le fonti si alternano una alla volta.'},
+  docu:{name:'Live Web Docu',description:'Documentari recenti in rotazione continua 24/7.'}
+};
+let activeWebLiveId='main';
+try{const saved=sessionStorage.getItem('tubetv_web_live_channel');if(WEB_LIVE_DEFINITIONS[saved])activeWebLiveId=saved;}catch(e){}
+
+function activeWebLiveBundle(){
+  if(activeWebLiveId==='main')return {liveQueue:DB.liveQueue||[],liveState:DB.liveState||{},schedule:DB.schedule||[]};
+  return DB.webLiveChannels?.[activeWebLiveId]||{liveQueue:[],liveState:{status:'NO_SOURCES'},schedule:[]};
+}
+
+function renderWebLiveChannelTabs(){
+  document.querySelectorAll('[data-live-channel]').forEach(button=>button.classList.toggle('active',button.dataset.liveChannel===activeWebLiveId));
+  const definition=WEB_LIVE_DEFINITIONS[activeWebLiveId]||WEB_LIVE_DEFINITIONS.main;
+  const heading=document.getElementById('live-channel-heading');if(heading)heading.textContent=definition.name;
+  const description=document.getElementById('live-channel-description');if(description)description.textContent=definition.description;
+  const guideButton=document.querySelector('.live-guide-open');if(guideButton)guideButton.textContent=activeWebLiveId==='main'?'Tutta la giornata':'Programmazione 24h';
+}
+
+async function selectWebLiveChannel(channelId){
+  if(!WEB_LIVE_DEFINITIONS[channelId]||channelId===activeWebLiveId)return;
+  activeWebLiveId=channelId;
+  try{sessionStorage.setItem('tubetv_web_live_channel',channelId);}catch(e){}
+  stopLivePlayer?.();
+  DB.liveQueue=[];DB.liveState={};DB.publicLiveSchedule={liveQueue:[]};
+  _lastAppliedScheduleSignature='';_lastAppliedLiveStateSignature='';
+  renderWebLiveChannelTabs();
+  await applyPublicSchedule();
+  renderLive();
+}
 let _dataLoaded = false;
 let _dataLoadPromise = null;
 let _seriesRenderRetryCount = 0;
@@ -2372,6 +2421,7 @@ async function loadAllData(){
     DB.topContent    = unified.topContent    ?? [];
     DB.videoLibrary  = unified.videoLibrary  ?? {};
     DB.events        = unified.events        ?? [];
+    DB.webLiveChannels = (unified.webLiveChannels && typeof unified.webLiveChannels === 'object') ? unified.webLiveChannels : {};
     DB.publicLiveSchedule = (unified.publicLiveSchedule && typeof unified.publicLiveSchedule === 'object') ? unified.publicLiveSchedule : {};
     DB.liveQueue     = Array.isArray(unified.publicLiveSchedule?.liveQueue)
       ? unified.publicLiveSchedule.liveQueue.slice(0, 3)
@@ -2489,21 +2539,22 @@ async function refreshFromUnified(force){
     if(d.videoLibrary&&typeof d.videoLibrary==='object') DB.videoLibrary = d.videoLibrary;
     if(Array.isArray(d.events))         DB.events         = d.events;
     if(Array.isArray(d.categories))     DB.categories     = d.categories;
-    if (d.publicLiveSchedule && typeof d.publicLiveSchedule === 'object') {
-      DB.publicLiveSchedule = d.publicLiveSchedule;
-    }
-
-    if (Array.isArray(d.publicLiveSchedule?.liveQueue)) {
-      DB.liveQueue = d.publicLiveSchedule.liveQueue.slice(0, 3);
-    } else if (Array.isArray(d.liveQueue)) {
-      DB.liveQueue = d.liveQueue.slice(0, 3);
-    } else {
-      DB.liveQueue = [];
+    if(d.webLiveChannels&&typeof d.webLiveChannels==='object')DB.webLiveChannels=d.webLiveChannels;
+    const selectedBundle=activeWebLiveId==='main'?null:DB.webLiveChannels?.[activeWebLiveId];
+    if(selectedBundle){
+      DB.publicLiveSchedule={liveQueue:Array.isArray(selectedBundle.liveQueue)?selectedBundle.liveQueue.slice(0,3):[]};
+      DB.liveQueue=DB.publicLiveSchedule.liveQueue;
+      DB.liveState=(selectedBundle.liveState&&typeof selectedBundle.liveState==='object')?selectedBundle.liveState:{};
+    }else{
+      if (d.publicLiveSchedule && typeof d.publicLiveSchedule === 'object') DB.publicLiveSchedule = d.publicLiveSchedule;
+      if (Array.isArray(d.publicLiveSchedule?.liveQueue)) DB.liveQueue = d.publicLiveSchedule.liveQueue.slice(0, 3);
+      else if (Array.isArray(d.liveQueue)) DB.liveQueue = d.liveQueue.slice(0, 3);
+      else DB.liveQueue = [];
     }
     if(Array.isArray(d.botHistory))     DB.botHistory     = d.botHistory;
     if(d.lastBotRunAt)                  DB.lastBotRunAt   = d.lastBotRunAt;
     const prevCurrent = String(DB.liveState?.currentVideoId || '');
-    if(d.liveState && typeof d.liveState==='object') {
+    if(activeWebLiveId==='main'&&d.liveState && typeof d.liveState==='object') {
       DB.liveState = d.liveState;
       const nextCurrent = String(DB.liveState?.currentVideoId || '');
       if(prevCurrent && nextCurrent && prevCurrent !== nextCurrent) {
@@ -2748,6 +2799,7 @@ async function switchView(v){
 
   if (v === 'home') renderHome();
   else if (v === 'live') {
+    renderWebLiveChannelTabs();
     await refreshFromUnified(true);
     await applyPublicSchedule();
     startLivePlayer();
@@ -3092,7 +3144,7 @@ function getLiveQueueUnified(){
 async function fetchLiveState(){
   try {
     const requestStartedAt = Date.now();
-    const r = await fetch(getBasePath() + 'api/live-state.php?ts=' + Date.now(), {cache:'no-store'});
+    const r = await fetch(getBasePath() + 'api/live-state.php?channel=' + encodeURIComponent(activeWebLiveId) + '&ts=' + Date.now(), {cache:'no-store'});
     if (!r.ok) return { queue: [], liveState: null };
     const responseReceivedAt = Date.now();
     const serverDate = new Date(r.headers.get('Date') || 0).getTime();
@@ -3616,7 +3668,8 @@ function sameLiveItem(a, b) {
 }
 
 function getTodayProgrammeGuide(){
-  const schedule=Array.isArray(DB.schedule)&&DB.schedule.length?DB.schedule:(Array.isArray(DB.palinsesto)?DB.palinsesto:[]);
+  const secondarySchedule=activeWebLiveId!=='main'&&Array.isArray(DB.webLiveChannels?.[activeWebLiveId]?.schedule)?DB.webLiveChannels[activeWebLiveId].schedule:[];
+  const schedule=secondarySchedule.length?secondarySchedule:(Array.isArray(DB.schedule)&&DB.schedule.length?DB.schedule:(Array.isArray(DB.palinsesto)?DB.palinsesto:[]));
   const today=new Date(getLiveNowMs()).toLocaleDateString('en-CA');
   return schedule.filter(item=>{
     const start=new Date(item?.scheduledStartDateTime||item?.startDateTime||0);

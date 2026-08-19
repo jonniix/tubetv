@@ -1639,6 +1639,16 @@ label:has(#bot-auto-toggle){
             <label>Fasce orarie associate <span style="font-size:0.72rem;color:var(--muted);">(quando usare questo canale)</span></label>
             <div id="ch-slots-list" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem;padding:.75rem;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid rgba(255,255,255,.06);min-height:42px;"></div>
           </div>
+          <div class="form-group" style="margin-bottom:1.1rem;">
+            <label>Canali Live Web 24/7 <span style="font-size:0.72rem;color:var(--muted);">(puoi assegnare la stessa fonte a più canali)</span></label>
+            <div id="ch-web-live-list" style="display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.5rem;padding:.75rem;background:rgba(124,58,237,.06);border-radius:8px;border:1px solid rgba(124,58,237,.18);">
+              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="live2" style="width:auto;margin-right:5px;"> Live Web 2</label>
+              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="kids" style="width:auto;margin-right:5px;"> Kids</label>
+              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="crime" style="width:auto;margin-right:5px;"> Crime</label>
+              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="docu" style="width:auto;margin-right:5px;"> Docu</label>
+            </div>
+            <small style="color:var(--muted);">I secondari ignorano le fasce: alternano le fonti tutto il giorno, usano video entro 30 giorni e spingono le novità per 72 ore.</small>
+          </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
             <button class="btn-warning" id="btn-cancel-ch" onclick="cancelEditChannel()" style="display:none;"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Annulla</button>
             <button class="btn-add" id="btn-add-ch" onclick="addChannel()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Aggiungi Canale</button>
@@ -1647,7 +1657,7 @@ label:has(#bot-auto-toggle){
         <div class="admin-card">
           <h3><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg> Canali registrati</h3>
           <table class="admin-table">
-            <thead><tr><th></th><th>Nome</th><th>Stelle</th><th>Fasce</th><th>Azioni</th></tr></thead>
+            <thead><tr><th></th><th>Nome</th><th>Stelle</th><th>Fasce / Live 24/7</th><th>Azioni</th></tr></thead>
             <tbody id="channels-table"></tbody>
           </table>
           <div id="channels-empty" style="text-align:center;padding:2rem;color:var(--muted);display:none;">Nessun canale ancora.</div>
@@ -3648,6 +3658,9 @@ function editChannel(id) {
   document.getElementById('ch-rating').value = c.rating || 5;
   document.getElementById('ch-kids').checked = !!c.isKids;
   document.getElementById('ch-tv').checked = !!c.isTv;
+  document.querySelectorAll('#ch-web-live-list input[type=checkbox]').forEach(input=>{
+    input.checked=(Array.isArray(c.webLiveIds)?c.webLiveIds:[]).includes(input.value);
+  });
   const nameEl = document.getElementById('ch-name');
   if (nameEl) { nameEl.dataset.chHandle = c.handle||''; nameEl.dataset.chDesc = c.description||''; }
   const thumbEl = document.getElementById('ch-thumb-preview');
@@ -3666,6 +3679,7 @@ function cancelEditChannel() {
   document.getElementById('ch-rating').value = 5;
   document.getElementById('ch-kids').checked = false;
   document.getElementById('ch-tv').checked = false;
+  document.querySelectorAll('#ch-web-live-list input[type=checkbox]').forEach(input=>{input.checked=false;});
   const nameEl = document.getElementById('ch-name');
   if (nameEl) { nameEl.dataset.chHandle=''; nameEl.dataset.chDesc=''; }
   const thumbEl = document.getElementById('ch-thumb-preview');
@@ -5083,7 +5097,10 @@ function renderChannelsTable(){
   if(em)em.style.display='none';
   tb.innerHTML=DB.channels.map((c,i)=>{
     const stars=renderStars(c.rating||5);
-    const chips=(c.slots||[]).map(sid=>{const s=DB.slots.find(sl=>sl.id===sid);return s?`<span class="slot-chip">${s.name||s.start}</span>`:''}).join('');
+    const slotChips=(c.slots||[]).map(sid=>{const s=DB.slots.find(sl=>sl.id===sid);return s?`<span class="slot-chip">${s.name||s.start}</span>`:''}).join('');
+    const liveNames={live2:'LIVE 2',kids:'KIDS',crime:'CRIME',docu:'DOCU'};
+    const liveChips=(Array.isArray(c.webLiveIds)?c.webLiveIds:[]).map(id=>liveNames[id]?`<span class="badge badge-purple" style="font-size:.6rem;margin:2px;">${liveNames[id]}</span>`:'').join('');
+    const chips=[slotChips,liveChips].filter(Boolean).join(' ');
     return `<tr>
       <td style="padding:6px 8px;">${c.thumbnail?`<img src="${c.thumbnail}" style="width:54px;height:30px;object-fit:cover;border-radius:4px;">`:''}</td>
       <td style="font-weight:500;">${c.name}${c.isTv?' <span class="badge badge-purple" style="font-size:.62rem;padding:1px 6px;vertical-align:middle;">📺 TV</span>':''} ${channelItalianStatusTag(c)}<div style="font-size:.72rem;color:var(--muted);">${c.handle||''}</div></td>
@@ -5103,6 +5120,7 @@ function addChannel(){
   const rating=Math.min(10,Math.max(1,parseInt(document.getElementById('ch-rating').value)||5));
   const isKids=document.getElementById('ch-kids').checked;
   const isTv=document.getElementById('ch-tv').checked;
+  const webLiveIds=Array.from(document.querySelectorAll('#ch-web-live-list input[type=checkbox]:checked')).map(input=>input.value);
   const checked=document.querySelectorAll('#ch-slots-list input[type=checkbox]:checked');
   const slots=Array.from(checked).map(el=>el.value);
   const handle=nameEl?.dataset?.chHandle||extractHandle(url);
@@ -5112,7 +5130,7 @@ function addChannel(){
   if(!name||!url){alert('Inserisci nome e URL!');return;}
   if(_editChannelId){
     const idx=DB.channels.findIndex(c=>c.id===_editChannelId);
-    if(idx>=0) DB.channels[idx]={...DB.channels[idx],name,url,handle,rating,slots,description,thumbnail,isKids,isTv};
+    if(idx>=0) DB.channels[idx]={...DB.channels[idx],name,url,handle,rating,slots,description,thumbnail,isKids,isTv,webLiveIds};
     _editChannelId=null;
     const btn=document.getElementById('btn-add-ch');
     if(btn) btn.innerHTML=`${IC.plus} Aggiungi Canale`;
@@ -5120,7 +5138,7 @@ function addChannel(){
     if(cancel) cancel.style.display='none';
   } else {
     DB.channels.push({
-      id:uid(),name,url,handle,rating,slots,description,thumbnail,isKids,isTv,
+      id:uid(),name,url,handle,rating,slots,description,thumbnail,isKids,isTv,webLiveIds,
       active:true,enabled:true,
       trustedItalianChannel:String(DB.settings?.contentLanguage||'it').toLowerCase().startsWith('it')
     });
@@ -5134,6 +5152,7 @@ function addChannel(){
   document.getElementById('ch-rating').value=5;
   document.getElementById('ch-kids').checked=false;
   document.getElementById('ch-tv').checked=false;
+  document.querySelectorAll('#ch-web-live-list input[type=checkbox]').forEach(input=>{input.checked=false;});
   if(thumbEl){thumbEl.src='';thumbEl.style.display='none';}
   if(nameEl){nameEl.dataset.chHandle='';nameEl.dataset.chDesc='';}
   renderChannelSlotCheckboxes([]);

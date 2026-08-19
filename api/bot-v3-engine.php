@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/schedule-engine.php';
+require_once __DIR__ . '/multilive-engine.php';
 
 if (!function_exists('v3_tick')) {
     function v3_compact_item(array $item): array {
@@ -178,9 +179,12 @@ if (!function_exists('v3_tick')) {
         if ($trigger === 'cron') $state['lastCronAt'] = se_iso($now);
         if ($changed) $state['lastDecisionAt'] = se_iso($now);
         $data['botV3'] = $state;
+        // Pubblica i canali lineari secondari dopo aver congelato la terna
+        // ufficiale della Live principale, mantenendo i due motori isolati.
+        $webLiveChannels = ml_tick_all($data, $now);
         $data['version'] = (string)((int)round(microtime(true) * 1000));
         $data['lastBotPublishAt'] = se_iso($now);
-        return ['ok' => $currentId !== '', 'changed' => $changed, 'rebuilt' => $rebuilt, 'futureRebuilt' => $futureRebuilt, 'catalogSync' => $catalogSync, 'audioVerification' => $audioVerification, 'state' => $state, 'current' => $currentId !== '' ? v3_compact_item($current) : null, 'queue' => $queue];
+        return ['ok' => $currentId !== '', 'changed' => $changed, 'rebuilt' => $rebuilt, 'futureRebuilt' => $futureRebuilt, 'catalogSync' => $catalogSync, 'audioVerification' => $audioVerification, 'webLiveChannels' => $webLiveChannels, 'state' => $state, 'current' => $currentId !== '' ? v3_compact_item($current) : null, 'queue' => $queue];
     }
 
     function v3_status(array $data, int $now): array {
@@ -197,6 +201,7 @@ if (!function_exists('v3_tick')) {
             'futureScheduleMeta' => is_array($data['futureScheduleMeta'] ?? null) ? $data['futureScheduleMeta'] : [],
             'decisions' => array_slice(is_array($data['botV3Decisions'] ?? null) ? $data['botV3Decisions'] : [], 0, 50),
             'settings' => se_bot_profile($data),
+            'webLiveChannels' => is_array($data['webLiveChannels'] ?? null) ? $data['webLiveChannels'] : [],
             'serverNow' => se_iso($now),
         ];
     }

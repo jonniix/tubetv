@@ -236,6 +236,12 @@ nav {
 
 /* ── LIVE ── */
 #view-live { background: var(--bg); }
+.mobile-live-head{padding:1rem 1rem .7rem}
+.mobile-live-head .section-title{margin-bottom:.7rem}
+.mobile-live-tabs{display:flex;gap:.5rem;overflow-x:auto;padding:.15rem 0 .35rem;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.mobile-live-tabs::-webkit-scrollbar{display:none}
+.mobile-live-tab{flex:0 0 auto;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:#17171d;color:#aaa;padding:.62rem .9rem;font:800 .76rem/1 inherit;letter-spacing:.02em;white-space:nowrap}
+.mobile-live-tab.active{border-color:var(--accent);background:var(--accent);color:#fff;box-shadow:0 7px 22px rgba(230,57,70,.28)}
 .live-player-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; overflow: hidden; }
 .live-player-wrap > div, .live-player-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
 .mobile-live-start-gate{display:none;position:absolute!important;inset:0;z-index:60;width:100%;height:100%;place-items:center;border:0;background:rgba(0,0,0,.62);color:#fff;font:800 1rem Arial,sans-serif}
@@ -1106,8 +1112,9 @@ body.tutv-fs-active .tutv-exit-fs-btn{
 
 <!-- ─── LIVE ─── -->
 <div id="view-live" class="view">
-  <div class="section" style="padding-bottom:.75rem;">
-    <div class="section-title">Live <span>Web</span></div>
+  <div class="mobile-live-head">
+    <div class="section-title" id="mobile-live-heading">Live <span>Web</span></div>
+    <div class="mobile-live-tabs" id="mobile-live-tabs" aria-label="Canali Live Web"></div>
   </div>
   <div class="live-player-wrap" id="live-player-outer">
     <div id="live-player-div"></div>
@@ -1313,7 +1320,7 @@ function setBtnIcon(id, name){ const el=document.getElementById(id); if(el) el.i
 const DB = {
   videos: [], channels: [], series: [], seriesEpisodes: {}, events: [],
   liveQueue: [], palinsesto: [], topContent: [], videoLibrary: {},
-  liveState: null,
+  liveState: null, webLiveChannels: {},
   settings: { name:'TubeTV', color:'#e63946' }
 };
 
@@ -1333,6 +1340,16 @@ let _lastAppliedLiveScheduleSigMobile = '';
 let _livePhaseWaitWarnKeyMobile = '';
 let _mobileLivePreloadedVideoId = '';
 let _mobileLiveServerClockOffsetMs = 0;
+const MOBILE_WEB_LIVE_DEFINITIONS = {
+  main: {name:'Live Web'}, live2: {name:'Live Web 2'}, kids: {name:'Live Web Kids'},
+  crime: {name:'Live Web Crime'}, docu: {name:'Live Web Docu'}
+};
+let mobileActiveWebLiveId = (()=>{
+  try {
+    const saved=sessionStorage.getItem('tutv_mobile_web_live')||'main';
+    return MOBILE_WEB_LIVE_DEFINITIONS[saved] ? saved : 'main';
+  } catch(e) { return 'main'; }
+})();
 let currentSeriesId = null;
 let currentSeriesDetailOpen = false;
 let lastSeriesViewState = null;
@@ -1509,7 +1526,7 @@ async function fetchLiveState(){
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const requestStartedAt = Date.now();
-      const r = await fetch(getBasePath() + 'api/live-state.php?live=' + Date.now() + '&attempt=' + attempt, { cache: 'no-store' });
+      const r = await fetch(getBasePath() + 'api/live-state.php?channel=' + encodeURIComponent(mobileActiveWebLiveId) + '&live=' + Date.now() + '&attempt=' + attempt, { cache: 'no-store' });
       if (!r.ok) {
         if (attempt === 2) return fallback;
         continue;
@@ -1890,13 +1907,18 @@ function applyData(d){
   if (Array.isArray(d.series))          DB.series         = d.series;
   if (d.seriesEpisodes)                 DB.seriesEpisodes = d.seriesEpisodes;
   if (Array.isArray(d.events))          DB.events         = d.events;
-  if (Array.isArray(d.liveQueue))       DB.liveQueue      = d.liveQueue;
-  if (Array.isArray(d.schedule))        DB.palinsesto     = d.schedule;
+  const selectedWebLive = mobileActiveWebLiveId==='main' ? null : d.webLiveChannels?.[mobileActiveWebLiveId];
+  if (Array.isArray(selectedWebLive?.liveQueue)) DB.liveQueue = selectedWebLive.liveQueue;
+  else if (mobileActiveWebLiveId==='main' && Array.isArray(d.liveQueue)) DB.liveQueue = d.liveQueue;
+  if (Array.isArray(selectedWebLive?.schedule)) DB.palinsesto = selectedWebLive.schedule;
+  else if (mobileActiveWebLiveId==='main' && Array.isArray(d.schedule)) DB.palinsesto = d.schedule;
   if (Array.isArray(d.topContent))      DB.topContent     = d.topContent;
   if (d.videoLibrary)                   DB.videoLibrary   = d.videoLibrary;
+  if (d.webLiveChannels && typeof d.webLiveChannels === 'object') DB.webLiveChannels = d.webLiveChannels;
   const prevCurrent = String(DB.liveState?.currentVideoId || '');
-  if (d.liveState && typeof d.liveState === 'object') {
-    DB.liveState = d.liveState;
+  const incomingLiveState = selectedWebLive?.liveState || (mobileActiveWebLiveId==='main' ? d.liveState : null);
+  if (incomingLiveState && typeof incomingLiveState === 'object') {
+    DB.liveState = incomingLiveState;
     const nextCurrent = String(DB.liveState?.currentVideoId || '');
     if(prevCurrent && nextCurrent && prevCurrent !== nextCurrent) {
       const by = String(DB.liveState?.currentChangedBy || DB.liveState?.lastAuthority?.requestedBy || 'unknown');
@@ -2165,7 +2187,35 @@ function toggleMobileLiveCaptions(){
   setMobileLiveCCState();
 }
 
+function renderMobileWebLiveTabs(){
+  const tabs=document.getElementById('mobile-live-tabs');
+  if(!tabs)return;
+  tabs.innerHTML=Object.entries(MOBILE_WEB_LIVE_DEFINITIONS).map(([id,def])=>
+    `<button type="button" class="mobile-live-tab${id===mobileActiveWebLiveId?' active':''}" onclick="selectMobileWebLiveChannel('${id}')">${esc(def.name)}</button>`
+  ).join('');
+  const heading=document.getElementById('mobile-live-heading');
+  if(heading) heading.innerHTML=mobileActiveWebLiveId==='main'
+    ? 'Live <span>Web</span>'
+    : `Live <span>${esc(MOBILE_WEB_LIVE_DEFINITIONS[mobileActiveWebLiveId].name.replace(/^Live Web\s*/,''))}</span>`;
+  requestAnimationFrame(()=>tabs.querySelector('.active')?.scrollIntoView?.({behavior:'smooth',block:'nearest',inline:'center'}));
+}
+
+async function selectMobileWebLiveChannel(id){
+  if(!MOBILE_WEB_LIVE_DEFINITIONS[id]||id===mobileActiveWebLiveId)return;
+  mobileActiveWebLiveId=id;
+  try{sessionStorage.setItem('tutv_mobile_web_live',id);}catch(e){}
+  stopLive();
+  DB.liveState=null; DB.liveQueue=[]; DB.palinsesto=[];
+  _lastAppliedLiveScheduleSigMobile='';
+  renderMobileWebLiveTabs();
+  showLiveLoading();
+  await refreshLiveFromServer();
+  renderLive();
+  if(_currentView==='live') await enterLiveView();
+}
+
 function renderLive(){
+  renderMobileWebLiveTabs();
   const state = DB.liveState;
   if(!state || !state.currentVideoId){
     showLiveLoading();

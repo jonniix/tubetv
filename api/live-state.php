@@ -30,13 +30,26 @@ function live_state_duration(array $item): int {
 }
 
 $now = time();
+$stationId = strtolower(trim((string)($_GET['channel'] ?? 'main')));
+$allowedStations = ['main', 'live2', 'kids', 'crime', 'docu'];
+if (!in_array($stationId, $allowedStations, true)) {
+    http_response_code(404);
+    echo json_encode(['ok' => false, 'error' => 'LIVE_CHANNEL_NOT_FOUND']);
+    exit;
+}
+$secondary = $stationId !== 'main';
+$station = $secondary && is_array($data['webLiveChannels'][$stationId] ?? null)
+    ? $data['webLiveChannels'][$stationId]
+    : [];
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'schedule-engine.php';
-if (function_exists('se_ensure_daily_schedule')) {
+if (!$secondary && function_exists('se_ensure_daily_schedule')) {
     // Read-time fallback: a viewer still receives today's deterministic
     // timeline when the hosting cron has not regenerated it yet.
     se_ensure_daily_schedule($data, $now, false);
 }
-$schedule = is_array($data['schedule'] ?? null) ? $data['schedule'] : [];
+$schedule = $secondary
+    ? (is_array($station['schedule'] ?? null) ? $station['schedule'] : [])
+    : (is_array($data['schedule'] ?? null) ? $data['schedule'] : []);
 $timeline = [];
 foreach ($schedule as $item) {
     if (!is_array($item) || live_state_id($item) === '' || (($item['type'] ?? 'content') !== 'content')) continue;
@@ -64,7 +77,9 @@ if ($projected) {
     for ($i = $currentIndex; $i < count($timeline) && count($queue) < 3; $i++) $queue[] = $timeline[$i]['item'];
     $current = $queue[0];
     $duration = live_state_duration($current);
-    $existing = is_array($data['liveState'] ?? null) ? $data['liveState'] : [];
+    $existing = $secondary
+        ? (is_array($station['liveState'] ?? null) ? $station['liveState'] : [])
+        : (is_array($data['liveState'] ?? null) ? $data['liveState'] : []);
     $state = array_merge($existing, [
         'type' => 'video',
         'status' => 'playing',
@@ -89,14 +104,20 @@ if ($projected) {
         'projectedFromSchedule' => true,
     ]);
 } else {
-    $state = is_array($data['liveState'] ?? null) ? $data['liveState'] : [];
-    $queue = is_array($data['publicLiveSchedule']['liveQueue'] ?? null)
-        ? array_values(array_slice($data['publicLiveSchedule']['liveQueue'], 0, 3))
-        : array_values(array_slice(is_array($data['liveQueue'] ?? null) ? $data['liveQueue'] : [], 0, 3));
+    $state = $secondary
+        ? (is_array($station['liveState'] ?? null) ? $station['liveState'] : [])
+        : (is_array($data['liveState'] ?? null) ? $data['liveState'] : []);
+    $queue = $secondary
+        ? array_values(array_slice(is_array($station['liveQueue'] ?? null) ? $station['liveQueue'] : [], 0, 3))
+        : (is_array($data['publicLiveSchedule']['liveQueue'] ?? null)
+            ? array_values(array_slice($data['publicLiveSchedule']['liveQueue'], 0, 3))
+            : array_values(array_slice(is_array($data['liveQueue'] ?? null) ? $data['liveQueue'] : [], 0, 3)));
 }
 
 echo json_encode([
     'ok' => true,
+    'channelId' => $stationId,
+    'channelName' => $secondary ? (string)($station['name'] ?? ucfirst($stationId)) : 'Live Web',
     'projected' => $projected,
     'serverNow' => gmdate('Y-m-d\TH:i:s', $now) . '.000Z',
     'liveState' => $state,
