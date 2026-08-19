@@ -18,7 +18,7 @@
   RewriteRule ^(?:private|\.git|node_modules)(?:/|$) - [F,L,NC]
 
   # Residui locali e backup nella root: il database pubblico valido vive solo in data/.
-  RewriteRule ^(?:\.env(?:\..*)?|index\.html\.bak|super_prompt\.txt|tubetv-data(?: \([0-9]+\))?\.json|package(?:-lock)?\.json|README\.md|transform\.py|_.*\.js|.*-tests\.(?:php|js))$ - [F,L,NC]
+  RewriteRule ^(?:\.env(?:\..*)?|index\.html\.bak|super_prompt\.txt|tubetv-data(?:[[:space:]]\([0-9]+\))?\.json|package(?:-lock)?\.json|README\.md|transform\.py|_.*\.js|.*-tests\.(?:php|js))$ - [F,L,NC]
 
   # Stato operativo non destinato al browser. Il client usa le API aggregate.
   RewriteRule ^data/(?:live-presence\.json|.*\.bak|\.bot.*|.*\.lock|.*\.tmp)$ - [F,L,NC]
