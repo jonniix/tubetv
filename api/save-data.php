@@ -189,7 +189,10 @@ try {
     }
 
     $adminToken = get_admin_token();
-    if ($adminToken !== '' && requires_admin_auth($patch)) {
+    if ($adminToken === '' && requires_admin_auth($patch)) {
+        fail_json('ADMIN_TOKEN_NOT_CONFIGURED', 503);
+    }
+    if (requires_admin_auth($patch)) {
         $headers = function_exists('getallheaders') ? getallheaders() : [];
         $provided = get_header_ci(is_array($headers) ? $headers : [], 'X-TubeTV-Admin');
         if ($provided === '' || !hash_equals($adminToken, $provided)) {
