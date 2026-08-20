@@ -28,7 +28,16 @@ $url = trim((string)($input['url'] ?? ''));
 if ($url === '') ycm_reply(['ok' => false, 'error' => 'URL_REQUIRED'], 400);
 
 $params = ['part' => 'snippet'];
-if (preg_match('~(?:youtube\.com/)?channel/(UC[A-Za-z0-9_-]{20,})~i', $url, $match)) {
+$searchQuery = '';
+$parsedUrl = parse_url($url);
+if (is_array($parsedUrl) && stripos((string)($parsedUrl['path'] ?? ''), '/results') !== false) {
+    $queryParts = [];
+    parse_str((string)($parsedUrl['query'] ?? ''), $queryParts);
+    $searchQuery = trim((string)($queryParts['search_query'] ?? ''));
+}
+if ($searchQuery !== '') {
+    // Resolved below through search.list, then confirmed through channels.list.
+} elseif (preg_match('~(?:youtube\.com/)?channel/(UC[A-Za-z0-9_-]{20,})~i', $url, $match)) {
     $params['id'] = $match[1];
 } elseif (preg_match('~(?:youtube\.com/)?@([^/?&#]+)~i', $url, $match)) {
     $params['forHandle'] = '@' . ltrim($match[1], '@');
@@ -42,6 +51,30 @@ if (preg_match('~(?:youtube\.com/)?channel/(UC[A-Za-z0-9_-]{20,})~i', $url, $mat
 
 $apiKey = se_youtube_api_key();
 if ($apiKey === '') ycm_reply(['ok' => false, 'error' => 'YOUTUBE_API_KEY_NOT_CONFIGURED'], 503);
+$matchedFromSearch = false;
+if ($searchQuery !== '') {
+    $search = se_http_json('https://www.googleapis.com/youtube/v3/search?' . http_build_query([
+        'part' => 'snippet', 'type' => 'channel', 'maxResults' => 5,
+        'q' => $searchQuery, 'relevanceLanguage' => 'it', 'safeSearch' => 'moderate', 'key' => $apiKey,
+    ]));
+    $items = is_array($search['items'] ?? null) ? $search['items'] : [];
+    if (!$items) ycm_reply(['ok' => false, 'error' => 'YOUTUBE_CHANNEL_NOT_FOUND'], 404);
+    $normalize = static fn(string $value): string => preg_replace('/[^a-z0-9]+/', '', strtolower($value)) ?? '';
+    $wanted = $normalize($searchQuery);
+    usort($items, static function (array $left, array $right) use ($normalize, $wanted): int {
+        $score = static function (array $item) use ($normalize, $wanted): int {
+            $title = $normalize((string)($item['snippet']['title'] ?? ''));
+            if ($title === $wanted) return 100;
+            if ($wanted !== '' && (str_starts_with($title, $wanted) || str_starts_with($wanted, $title))) return 50;
+            return 0;
+        };
+        return $score($right) <=> $score($left);
+    });
+    $resolvedChannelId = trim((string)($items[0]['id']['channelId'] ?? ''));
+    if ($resolvedChannelId === '') ycm_reply(['ok' => false, 'error' => 'YOUTUBE_CHANNEL_NOT_FOUND'], 404);
+    $params['id'] = $resolvedChannelId;
+    $matchedFromSearch = true;
+}
 $params['key'] = $apiKey;
 $result = se_http_json('https://www.googleapis.com/youtube/v3/channels?' . http_build_query($params));
 $item = is_array($result['items'][0] ?? null) ? $result['items'][0] : null;
@@ -54,6 +87,8 @@ ycm_reply([
     'name' => trim((string)($snippet['title'] ?? '')),
     'handle' => $customUrl !== '' ? '@' . $customUrl : '',
     'youtubeChannelId' => trim((string)($item['id'] ?? '')),
+    'matchedFromSearch' => $matchedFromSearch,
+    'searchQuery' => $matchedFromSearch ? $searchQuery : '',
     'thumbnail' => (string)($thumbnails['high']['url'] ?? $thumbnails['medium']['url'] ?? $thumbnails['default']['url'] ?? ''),
     'description' => mb_substr((string)($snippet['description'] ?? ''), 0, 200),
 ]);

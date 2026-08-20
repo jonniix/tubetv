@@ -3423,6 +3423,7 @@ async function fetchChannelMeta(url) {
     });
     const data=await response.json().catch(()=>({}));
     if(response.ok&&data.ok!==false&&data.name){
+      if(data.matchedFromSearch)setChannelLiveSaveStatus(`Canale trovato dalla ricerca “${data.searchQuery||data.name}”: ${data.name}`,'ok');
       return {
         name:data.name,handle:data.handle||handle,
         youtubeChannelId:data.youtubeChannelId||'',thumbnail:data.thumbnail||null,
