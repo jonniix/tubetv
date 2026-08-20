@@ -21,7 +21,7 @@ $video = static fn(string $id, string $channelId, int $published, string $title)
 $data = [
     'settings' => ['contentLanguage' => 'it', 'playbackCountry' => 'CH'],
     'channels' => [
-        $channel('crime_a', ['crime', 'docu']),
+        $channel('crime_a', ['crime', 'docu', 'cucina']),
         $channel('crime_b', ['crime']),
         $channel('crime_c', ['crime']),
     ],
@@ -56,6 +56,8 @@ for ($i = 1; $i < count($firstChannels); $i++) {
 
 $docu = $stations['docu'];
 ml_check($docu['sourceCount'] === 1 && ($docu['liveQueue'][0]['channelId'] ?? '') === 'crime_a', 'one source cannot belong to multiple stations');
+$cucina = $stations['cucina'];
+ml_check($cucina['sourceCount'] === 1 && ($cucina['liveQueue'][0]['channelId'] ?? '') === 'crime_a', 'Live Cucina station was not generated');
 ml_check(($stations['kids']['liveState']['status'] ?? '') === 'NO_SOURCES', 'empty station status is not explicit');
 
 $firstScheduleIds = array_column(array_slice($crime['schedule'], 0, 3), 'id');

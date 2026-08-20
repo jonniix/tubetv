@@ -31,7 +31,7 @@ function live_state_duration(array $item): int {
 
 $now = time();
 $stationId = strtolower(trim((string)($_GET['channel'] ?? 'main')));
-$allowedStations = ['main', 'live2', 'kids', 'crime', 'docu'];
+$allowedStations = ['main', 'live2', 'kids', 'crime', 'docu', 'cucina'];
 if (!in_array($stationId, $allowedStations, true)) {
     http_response_code(404);
     echo json_encode(['ok' => false, 'error' => 'LIVE_CHANNEL_NOT_FOUND']);

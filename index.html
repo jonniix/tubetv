@@ -1849,6 +1849,7 @@ nav { z-index:800 !important; }
         <button class="live-channel-tab" data-live-channel="kids" onclick="selectWebLiveChannel('kids')">Live Kids</button>
         <button class="live-channel-tab" data-live-channel="crime" onclick="selectWebLiveChannel('crime')">Live Crime</button>
         <button class="live-channel-tab" data-live-channel="docu" onclick="selectWebLiveChannel('docu')">Live Docu &amp; Lifestyle</button>
+        <button class="live-channel-tab" data-live-channel="cucina" onclick="selectWebLiveChannel('cucina')">Live Cucina</button>
       </div>
       <div class="live-onair-pill"><span class="live-dot"></span> ON AIR 24/7</div>
     </div>
@@ -2301,7 +2302,8 @@ const WEB_LIVE_DEFINITIONS={
   live2:{name:'Live Web 2',logo:'icons/live-web-2.svg',description:'Rotazione 24/7 delle fonti assegnate, con priorità alle novità.'},
   kids:{name:'Live Kids',logo:'icons/live-kids.svg',description:'Canale lineare Kids sempre attivo con contenuti recenti.'},
   crime:{name:'Live Crime',logo:'icons/live-crime.svg',description:'Crime 24/7: le fonti si alternano una alla volta.'},
-  docu:{name:'Live Docu & Lifestyle',logo:'icons/live-docu-lifestyle.svg',description:'Documentari e lifestyle recenti in rotazione continua 24/7.'}
+  docu:{name:'Live Docu & Lifestyle',logo:'icons/live-docu-lifestyle.svg',description:'Documentari e lifestyle recenti in rotazione continua 24/7.'},
+  cucina:{name:'Live Cucina',logo:'icons/live-cucina.svg',description:'Ricette, chef e cultura gastronomica in rotazione continua 24/7.'}
 };
 let activeWebLiveId='main';
 try{const saved=sessionStorage.getItem('tubetv_web_live_channel');if(WEB_LIVE_DEFINITIONS[saved])activeWebLiveId=saved;}catch(e){}

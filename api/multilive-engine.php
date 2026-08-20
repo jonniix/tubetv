@@ -17,6 +17,7 @@ if (!function_exists('ml_definitions')) {
             'kids'  => ['id' => 'kids',  'name' => 'Live Kids', 'shortName' => 'Live Kids'],
             'crime' => ['id' => 'crime', 'name' => 'Live Crime', 'shortName' => 'Live Crime'],
             'docu'  => ['id' => 'docu',  'name' => 'Live Docu & Lifestyle', 'shortName' => 'Docu & Lifestyle'],
+            'cucina' => ['id' => 'cucina', 'name' => 'Live Cucina', 'shortName' => 'Live Cucina'],
         ];
     }
 
