@@ -532,10 +532,32 @@ label:has(#bot-auto-toggle){
   background:#34d399;
   box-shadow:0 0 0 4px rgba(52,211,153,.14);
 }
+.admin-login-gate{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at 50% 20%,#261018 0,#0b0b0f 52%,#060608 100%)}
+.admin-login-gate.hidden{display:none}
+.admin-login-card{width:min(390px,100%);padding:28px;border-radius:20px;background:rgba(18,18,24,.96);border:1px solid rgba(255,255,255,.1);box-shadow:0 30px 90px rgba(0,0,0,.6)}
+.admin-login-brand{font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:2px;margin-bottom:4px}.admin-login-brand b{color:#ef233c}.admin-login-brand span{color:#fff}
+.admin-login-card h1{font-size:1.15rem;margin:18px 0 5px}.admin-login-card p{color:var(--muted);font-size:.8rem;line-height:1.5;margin:0 0 18px}
+.admin-login-card label{display:block;color:#d7d7df;font-size:.72rem;font-weight:700;margin:12px 0 6px}.admin-login-card input{width:100%;box-sizing:border-box}
+.admin-login-submit{width:100%;margin-top:18px;padding:11px;border:0;border-radius:10px;background:#e63946;color:#fff;font-weight:800;cursor:pointer}.admin-login-submit:disabled{opacity:.55;cursor:wait}
+.admin-login-error{min-height:18px;margin-top:10px;color:#fca5a5;font-size:.74rem}
 </style>
 
 </head>
 <body>
+
+<div class="admin-login-gate" id="admin-login-gate">
+  <form class="admin-login-card" id="admin-login-form" onsubmit="submitAdminLogin(event)">
+    <div class="admin-login-brand"><b>TUBE</b><span>TV</span></div>
+    <h1>Accesso amministrazione</h1>
+    <p>Inserisci le credenziali amministratore per gestire canali, palinsesti e Live Web.</p>
+    <label for="admin-login-user">Nome utente</label>
+    <input id="admin-login-user" type="text" autocomplete="username" required autofocus>
+    <label for="admin-login-password">Password</label>
+    <input id="admin-login-password" type="password" autocomplete="current-password" required>
+    <button class="admin-login-submit" id="admin-login-submit" type="submit">Accedi</button>
+    <div class="admin-login-error" id="admin-login-error" role="alert"></div>
+  </form>
+</div>
 
 <nav>
   <div style="display:flex;align-items:center;gap:.5rem;">
@@ -2301,7 +2323,15 @@ const GLOBAL_PLAYER_POLICY = {
   languageRetryDelayMs: 500
 };
 
+function getAdminSessionToken(){
+  try{
+    const sessionToken=String(sessionStorage.getItem('tubetv_admin_session_token')||'').trim();
+    if(sessionToken)return sessionToken;
+  }catch(e){}
+  return '';
+}
 function getStoredAdminToken(){
+  const sessionToken=getAdminSessionToken();if(sessionToken)return sessionToken;
   const keys = ['tubetv_admin_token','tutv_admin_token','admin_token','bot_admin_token'];
   for(const key of keys){
     try {
@@ -2310,6 +2340,40 @@ function getStoredAdminToken(){
     } catch(e) {}
   }
   return '';
+}
+
+let _adminAppStarted=false;
+async function submitAdminLogin(event){
+  event?.preventDefault?.();
+  const button=document.getElementById('admin-login-submit');
+  const errorBox=document.getElementById('admin-login-error');
+  const username=String(document.getElementById('admin-login-user')?.value||'').trim();
+  const password=String(document.getElementById('admin-login-password')?.value||'');
+  if(button){button.disabled=true;button.textContent='Verifica…';}if(errorBox)errorBox.textContent='';
+  try{
+    const response=await fetch('api/admin-login.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password}),cache:'no-store'});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||result.ok===false||!result.adminToken)throw new Error(result.error||('HTTP '+response.status));
+    sessionStorage.setItem('tubetv_admin_session_token',String(result.adminToken));
+    const passwordInput=document.getElementById('admin-login-password');if(passwordInput)passwordInput.value='';
+    document.getElementById('admin-login-gate')?.classList.add('hidden');
+    updateAdminSecurityBadge();
+    if(!_adminAppStarted){_adminAppStarted=true;await init();}
+  }catch(error){
+    const message=String(error.message||error);
+    if(errorBox)errorBox.textContent=message==='INVALID_CREDENTIALS'?'Nome utente o password errati.':'Accesso non riuscito: '+message;
+  }finally{if(button){button.disabled=false;button.textContent='Accedi';}}
+}
+function logoutAdminSession(){
+  try{sessionStorage.removeItem('tubetv_admin_session_token');}catch(e){}
+  location.reload();
+}
+async function bootAdminAccess(){
+  if(getAdminSessionToken()){
+    document.getElementById('admin-login-gate')?.classList.add('hidden');
+    _adminAppStarted=true;await init();return;
+  }
+  document.getElementById('admin-login-gate')?.classList.remove('hidden');
 }
 
 function updateAdminSecurityBadge(){
@@ -9851,7 +9915,7 @@ function openVideoPreview(url,title,desc){
   if(modal) modal.classList.add('open');
 }
 
-document.addEventListener('DOMContentLoaded',init);
+document.addEventListener('DOMContentLoaded',bootAdminAccess);
 
 </script>
 
