@@ -9832,8 +9832,23 @@ async function loadAdminOnlineSourceOfTruth(){
   }
 }
 
+async function loadWebLiveAssignmentsOnline(){
+  try{
+    const response=await fetch('api/web-live-assign.php?ts='+Date.now(),{headers:getAdminAuthHeaders(),cache:'no-store'});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||result.ok===false)throw new Error(result.error||('HTTP '+response.status));
+    const assignments=result.assignments&&typeof result.assignments==='object'?result.assignments:{};
+    (DB.channels||[]).forEach(channel=>{
+      if(channel?.id&&Object.prototype.hasOwnProperty.call(assignments,channel.id))channel.webLiveIds=Array.isArray(assignments[channel.id])?assignments[channel.id]:[];
+    });
+    save('channels',DB.channels);
+    return true;
+  }catch(error){console.warn('[ADMIN] assegnazioni Live private non disponibili',error);return false;}
+}
+
 async function init(){
   await loadAdminOnlineSourceOfTruth();
+  await loadWebLiveAssignmentsOnline();
   if(DB.slots.length===0){
     DB.slots=[
       {id:uid(),start:'08:00',end:'10:00',name:'Mattino',channelIds:[],priority:2},

@@ -16,6 +16,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-TubeTV-Admin');
 
+require_once __DIR__ . '/web-live-assignments-lib.php';
+
 function fail_json($message, $code = 500) {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
@@ -271,6 +273,7 @@ try {
         }
     }
 
+    wla_apply_assignments($data);
     normalize_live_queues($data);
     strip_secrets($data);
 

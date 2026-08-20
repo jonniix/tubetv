@@ -21,6 +21,7 @@ const botV3 = fs.readFileSync('api/bot-v3.php', 'utf8');
 const botV3Engine = fs.readFileSync('api/bot-v3-engine.php', 'utf8');
 const multiLive = fs.readFileSync('api/multilive-engine.php', 'utf8');
 const webLiveAssign = fs.readFileSync('api/web-live-assign.php', 'utf8');
+const webLiveAssignmentsLib = fs.readFileSync('api/web-live-assignments-lib.php', 'utf8');
 const adminLogin = fs.readFileSync('api/admin-login.php', 'utf8');
 const htaccess = fs.readFileSync('.htaccess', 'utf8');
 checkInlineScripts('admin.html');
@@ -46,7 +47,7 @@ check(botV3.includes("if ($token === '') return false;"), 'Bot V3 accetta ancora
 check(admin.includes('configureAdminToken()') && admin.includes('admin-security-token-btn'), 'Admin non offre la configurazione locale del token');
 check(admin.includes('ch-web-live-list') && admin.includes('webLiveIds'), 'Assegnazione sorgenti ai canali Live Web secondari assente');
 check(admin.includes('toggleChannelWebLive') && admin.includes('persistChannelWebLiveOnline') && admin.includes('api/web-live-assign.php'), 'Salvataggio rapido online delle assegnazioni Live assente');
-check(webLiveAssign.includes(".bot-v3.lock") && webLiveAssign.includes("flock($lock, LOCK_EX)") && webLiveAssign.includes("$channel['webLiveIds'] = $webLiveIds"), 'Endpoint assegnazioni Live non sincronizzato con il lock del bot');
+check(webLiveAssign.includes('wla_write_assignment') && webLiveAssignmentsLib.includes('.web-live-assignments.lock') && webLiveAssignmentsLib.includes("$channel['webLiveIds'] = $assignments[$channelId]") && botV3.includes('wla_apply_assignments($data)'), 'Persistenza rapida privata o applicazione delle assegnazioni nel bot assente');
 check(admin.includes('id="admin-login-gate"') && admin.includes('bootAdminAccess') && admin.includes('api/admin-login.php'), 'Cancello di accesso Admin assente');
 check(adminLogin.includes('password_verify') && adminLogin.includes("TUBETV_ADMIN_PASSWORD_HASH") && !adminLogin.includes("'admin' => 'admin'"), 'Credenziali Admin non verificate lato server o esposte nel codice');
 check(botV3Engine.includes('ml_tick_all($data, $now)') && multiLive.includes("'maxAgeDays' => 30") && multiLive.includes("'newReleaseWindowHours' => 72"), 'Motore multi-canale non collegato al bot ufficiale o regole mancanti');
