@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="112" viewBox="0 0 300 112" role="img" aria-labelledby="title">
+  <title id="title">TubeTV Live Web 2</title>
+  <rect x="1" y="1" width="298" height="110" rx="19" fill="#09090c" fill-opacity=".82" stroke="#8b5cf6" stroke-opacity=".55"/>
+  <text x="22" y="57" font-family="Arial Black,Arial,sans-serif" font-size="43" font-weight="900" letter-spacing="-2"><tspan fill="#ef233c">TUBE</tspan><tspan fill="#fff">TV</tspan></text>
+  <rect x="22" y="72" width="8" height="8" rx="4" fill="#8b5cf6"/>
+  <text x="39" y="82" fill="#c4b5fd" font-family="Arial,sans-serif" font-size="17" font-weight="800" letter-spacing="3">LIVE WEB 2</text>
+</svg>

@@ -244,6 +244,7 @@ nav {
 .mobile-live-tab.active{border-color:var(--accent);background:var(--accent);color:#fff;box-shadow:0 7px 22px rgba(230,57,70,.28)}
 .live-player-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; overflow: hidden; }
 .live-player-wrap > div, .live-player-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+.live-player-wrap > .live-channel-bug{position:absolute;inset:12px 12px auto auto;width:clamp(112px,32vw,155px);height:auto;z-index:38;pointer-events:none;filter:drop-shadow(0 7px 15px rgba(0,0,0,.5));opacity:.94}
 .mobile-live-start-gate{display:none;position:absolute!important;inset:0;z-index:60;width:100%;height:100%;place-items:center;border:0;background:rgba(0,0,0,.62);color:#fff;font:800 1rem Arial,sans-serif}
 .mobile-live-start-gate.show{display:grid}.mobile-live-start-gate span{padding:13px 20px;border-radius:999px;background:#e63946}
 .live-phase-overlay {
@@ -1118,6 +1119,7 @@ body.tutv-fs-active .tutv-exit-fs-btn{
   </div>
   <div class="live-player-wrap" id="live-player-outer">
     <div id="live-player-div"></div>
+    <img class="live-channel-bug" id="mobile-live-channel-bug" src="icons/live-web-1.svg" alt="TubeTV Live Web 1">
     <button id="mobile-live-start-gate" class="mobile-live-start-gate" type="button" onclick="startMobileLiveFromGesture()"><span>Tocca per avviare la diretta</span></button>
     <div id="mobile-live-transition-overlay" class="live-phase-overlay">
       <div>
@@ -1341,8 +1343,9 @@ let _livePhaseWaitWarnKeyMobile = '';
 let _mobileLivePreloadedVideoId = '';
 let _mobileLiveServerClockOffsetMs = 0;
 const MOBILE_WEB_LIVE_DEFINITIONS = {
-  main: {name:'Live Web'}, live2: {name:'Live Web 2'}, kids: {name:'Live Web Kids'},
-  crime: {name:'Live Web Crime'}, docu: {name:'Live Web Docu'}
+  main: {name:'Live Web 1',logo:'icons/live-web-1.svg'}, live2: {name:'Live Web 2',logo:'icons/live-web-2.svg'},
+  kids: {name:'Live Kids',logo:'icons/live-kids.svg'}, crime: {name:'Live Crime',logo:'icons/live-crime.svg'},
+  docu: {name:'Live Docu & Lifestyle',logo:'icons/live-docu-lifestyle.svg'}
 };
 let mobileActiveWebLiveId = (()=>{
   try {
@@ -2194,9 +2197,9 @@ function renderMobileWebLiveTabs(){
     `<button type="button" class="mobile-live-tab${id===mobileActiveWebLiveId?' active':''}" onclick="selectMobileWebLiveChannel('${id}')">${esc(def.name)}</button>`
   ).join('');
   const heading=document.getElementById('mobile-live-heading');
-  if(heading) heading.innerHTML=mobileActiveWebLiveId==='main'
-    ? 'Live <span>Web</span>'
-    : `Live <span>${esc(MOBILE_WEB_LIVE_DEFINITIONS[mobileActiveWebLiveId].name.replace(/^Live Web\s*/,''))}</span>`;
+  const definition=MOBILE_WEB_LIVE_DEFINITIONS[mobileActiveWebLiveId];
+  if(heading) heading.innerHTML=`Live <span>${esc(definition.name.replace(/^Live\s+/,''))}</span>`;
+  const bug=document.getElementById('mobile-live-channel-bug');if(bug){bug.src=definition.logo;bug.alt='TubeTV '+definition.name;}
   requestAnimationFrame(()=>tabs.querySelector('.active')?.scrollIntoView?.({behavior:'smooth',block:'nearest',inline:'center'}));
 }
 

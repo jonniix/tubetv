@@ -1643,9 +1643,9 @@ label:has(#bot-auto-toggle){
             <label>Canali Live Web 24/7 <span style="font-size:0.72rem;color:var(--muted);">(puoi assegnare la stessa fonte a più canali)</span></label>
             <div id="ch-web-live-list" style="display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.5rem;padding:.75rem;background:rgba(124,58,237,.06);border-radius:8px;border:1px solid rgba(124,58,237,.18);">
               <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="live2" style="width:auto;margin-right:5px;"> Live Web 2</label>
-              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="kids" style="width:auto;margin-right:5px;"> Kids</label>
-              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="crime" style="width:auto;margin-right:5px;"> Crime</label>
-              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="docu" style="width:auto;margin-right:5px;"> Docu</label>
+              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="kids" style="width:auto;margin-right:5px;"> Live Kids</label>
+              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="crime" style="width:auto;margin-right:5px;"> Live Crime</label>
+              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="docu" style="width:auto;margin-right:5px;"> Live Docu &amp; Lifestyle</label>
             </div>
             <small style="color:var(--muted);">I secondari ignorano le fasce: alternano le fonti tutto il giorno, usano video entro 30 giorni e spingono le novità per 72 ore.</small>
           </div>
@@ -5098,7 +5098,7 @@ function renderChannelsTable(){
   tb.innerHTML=DB.channels.map((c,i)=>{
     const stars=renderStars(c.rating||5);
     const slotChips=(c.slots||[]).map(sid=>{const s=DB.slots.find(sl=>sl.id===sid);return s?`<span class="slot-chip">${s.name||s.start}</span>`:''}).join('');
-    const liveNames={live2:'LIVE 2',kids:'KIDS',crime:'CRIME',docu:'DOCU'};
+    const liveNames={live2:'LIVE WEB 2',kids:'LIVE KIDS',crime:'LIVE CRIME',docu:'DOCU & LIFESTYLE'};
     const liveChips=(Array.isArray(c.webLiveIds)?c.webLiveIds:[]).map(id=>liveNames[id]?`<span class="badge badge-purple" style="font-size:.6rem;margin:2px;">${liveNames[id]}</span>`:'').join('');
     const chips=[slotChips,liveChips].filter(Boolean).join(' ');
     return `<tr>

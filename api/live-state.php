@@ -117,7 +117,7 @@ if ($projected) {
 echo json_encode([
     'ok' => true,
     'channelId' => $stationId,
-    'channelName' => $secondary ? (string)($station['name'] ?? ucfirst($stationId)) : 'Live Web',
+    'channelName' => $secondary ? (string)($station['name'] ?? ucfirst($stationId)) : 'Live Web 1',
     'projected' => $projected,
     'serverNow' => gmdate('Y-m-d\TH:i:s', $now) . '.000Z',
     'liveState' => $state,

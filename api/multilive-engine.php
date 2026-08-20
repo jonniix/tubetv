@@ -13,10 +13,10 @@ require_once __DIR__ . '/schedule-engine.php';
 if (!function_exists('ml_definitions')) {
     function ml_definitions(): array {
         return [
-            'live2' => ['id' => 'live2', 'name' => 'Live Web 2', 'shortName' => 'Live 2'],
-            'kids'  => ['id' => 'kids',  'name' => 'Live Web Kids', 'shortName' => 'Kids'],
-            'crime' => ['id' => 'crime', 'name' => 'Live Web Crime', 'shortName' => 'Crime'],
-            'docu'  => ['id' => 'docu',  'name' => 'Live Web Docu', 'shortName' => 'Docu'],
+            'live2' => ['id' => 'live2', 'name' => 'Live Web 2', 'shortName' => 'Live Web 2'],
+            'kids'  => ['id' => 'kids',  'name' => 'Live Kids', 'shortName' => 'Live Kids'],
+            'crime' => ['id' => 'crime', 'name' => 'Live Crime', 'shortName' => 'Live Crime'],
+            'docu'  => ['id' => 'docu',  'name' => 'Live Docu & Lifestyle', 'shortName' => 'Docu & Lifestyle'],
         ];
     }
 
