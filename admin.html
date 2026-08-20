@@ -1677,6 +1677,17 @@ label:has(#bot-auto-toggle){
             </div>
             <small style="color:var(--muted);">I secondari ignorano le fasce: alternano le fonti tutto il giorno, usano video entro 30 giorni e spingono le novità per 72 ore.</small>
           </div>
+          <div class="form-group" style="margin-bottom:1.1rem;">
+            <label>Ricalcolo manuale dei palinsesti <span style="font-size:.72rem;color:var(--muted);">(solo il canale scelto)</span></label>
+            <div style="display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.5rem;">
+              <button type="button" class="btn-warning secondary-live-rebuild" onclick="rebuildSecondaryLive('live2','Live Web 2',this)">↻ Live Web 2</button>
+              <button type="button" class="btn-warning secondary-live-rebuild" onclick="rebuildSecondaryLive('kids','Live Kids',this)">↻ Live Kids</button>
+              <button type="button" class="btn-warning secondary-live-rebuild" onclick="rebuildSecondaryLive('crime','Live Crime',this)">↻ Live Crime</button>
+              <button type="button" class="btn-warning secondary-live-rebuild" onclick="rebuildSecondaryLive('docu','Live Docu & Lifestyle',this)">↻ Docu & Lifestyle</button>
+              <button type="button" class="btn-warning secondary-live-rebuild" onclick="rebuildSecondaryLive('cucina','Live Cucina',this)">↻ Live Cucina</button>
+            </div>
+            <small style="color:var(--muted);">Mantiene il video già in onda e rigenera immediatamente tutti i successivi usando le fonti assegnate adesso.</small>
+          </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
             <button class="btn-warning" id="btn-cancel-ch" onclick="cancelEditChannel()" style="display:none;"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Annulla</button>
             <button type="button" class="btn-add" id="btn-add-ch" onclick="addChannel()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Aggiungi Canale</button>
@@ -5272,6 +5283,24 @@ async function persistSingleChannelOnline(action,channelOrId,allowTokenRetry=tru
   }
   if(!response.ok||result.ok===false)throw new Error(result.error||('HTTP '+response.status));
   return result;
+}
+async function rebuildSecondaryLive(stationId,label,button){
+  if(!getStoredAdminToken()&&!requestWebLiveAdminToken())return;
+  const buttons=Array.from(document.querySelectorAll('.secondary-live-rebuild'));
+  buttons.forEach(item=>item.disabled=true);
+  const original=button?.textContent||('↻ '+label);
+  if(button)button.textContent='Ricalcolo...';
+  setChannelLiveSaveStatus(`Ricalcolo di ${label} in corso…`,'info');
+  try{
+    const response=await fetch('api/bot-v3.php',{
+      method:'POST',headers:getAdminAuthHeaders(),cache:'no-store',
+      body:JSON.stringify({action:'rebuild_secondary',stationId})
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||result.ok===false)throw new Error(result.error||('HTTP '+response.status));
+    setChannelLiveSaveStatus(`✓ ${label} ricalcolato: ${Number(result.sourceCount||0)} fonti, ${Number(result.scheduleCount||0)} programmi. I prossimi tre sono aggiornati.`,'ok');
+  }catch(error){setChannelLiveSaveStatus(`${label} NON ricalcolato: ${String(error.message||error)}`,'err');}
+  finally{buttons.forEach(item=>item.disabled=false);if(button)button.textContent=original;}
 }
 function requestWebLiveAdminToken(message='Per salvare le assegnazioni Live inserisci il token Admin:'){
   const value=window.prompt(message,'');

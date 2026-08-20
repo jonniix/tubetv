@@ -44,9 +44,33 @@ elseif ($action === 'save_settings') {
     $data['botV3Settings'] = se_bot_profile(['botV3Settings' => $candidate]);
 }
 elseif ($action === 'reset_settings') { $data['botV3Settings'] = se_bot_profile([]); }
-elseif (!in_array($action, ['tick', 'sync_sources', 'force_rebuild_queue'], true)) { flock($lock, LOCK_UN); fclose($lock); http_response_code(400); echo json_encode(['ok' => false, 'error' => 'UNSUPPORTED_ACTION']); exit; }
+elseif (!in_array($action, ['tick', 'sync_sources', 'force_rebuild_queue', 'rebuild_secondary'], true)) { flock($lock, LOCK_UN); fclose($lock); http_response_code(400); echo json_encode(['ok' => false, 'error' => 'UNSUPPORTED_ACTION']); exit; }
 
 $result = null;
+if ($action === 'rebuild_secondary') {
+    $stationId = trim((string)($body['stationId'] ?? ''));
+    $definitions = ml_definitions();
+    if (!isset($definitions[$stationId])) {
+        flock($lock, LOCK_UN); fclose($lock);
+        http_response_code(400); echo json_encode(['ok' => false, 'error' => 'INVALID_SECONDARY_STATION']); exit;
+    }
+    $allStations = is_array($data['webLiveChannels'] ?? null) ? $data['webLiveChannels'] : [];
+    $existingStation = is_array($allStations[$stationId] ?? null) ? $allStations[$stationId] : [];
+    $rebuiltStation = ml_force_rebuild_station($data, $definitions[$stationId], $existingStation, $now);
+    $allStations[$stationId] = $rebuiltStation;
+    $data['webLiveChannels'] = $allStations;
+    $saved = v3_write($data);
+    flock($lock, LOCK_UN); fclose($lock);
+    echo json_encode([
+        'ok' => $saved, 'action' => $action, 'saved' => $saved, 'stationId' => $stationId,
+        'stationName' => (string)$definitions[$stationId]['name'],
+        'sourceCount' => (int)($rebuiltStation['sourceCount'] ?? 0),
+        'scheduleCount' => count(is_array($rebuiltStation['schedule'] ?? null) ? $rebuiltStation['schedule'] : []),
+        'liveQueue' => array_slice(is_array($rebuiltStation['liveQueue'] ?? null) ? $rebuiltStation['liveQueue'] : [], 0, 3),
+        'updatedAt' => se_iso($now),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
 if ($action !== 'disable') {
     $tickTrigger = in_array($action, ['save_settings', 'reset_settings'], true) ? 'force_rebuild_queue' : ($isCron ? 'cron' : $action);
     $result = v3_tick($data, $now, $tickTrigger);

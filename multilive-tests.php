@@ -84,6 +84,14 @@ $after = ml_tick_all($data, $transitionAt)['crime'];
 ml_check(count($after['history']) >= 1, 'completed secondary programme was not recorded');
 ml_check(($after['liveQueue'][0]['id'] ?? '') === ($crime['schedule'][1]['id'] ?? ''), 'secondary channel did not advance at the exact boundary');
 
+// Manual rebuild keeps the programme on air but releases and regenerates next/after-next.
+$stale = $crime;
+$stale['schedule'] = array_merge([$crime['schedule'][0]], array_fill(0, 5, $crime['schedule'][0]));
+$rebuilt = ml_force_rebuild_station($data, ml_definitions()['crime'], $stale, $now + 30);
+ml_check(($rebuilt['schedule'][0]['id'] ?? '') === ($crime['schedule'][0]['id'] ?? ''), 'manual rebuild interrupted the on-air programme');
+ml_check(($rebuilt['schedule'][1]['channelId'] ?? '') !== ($rebuilt['schedule'][0]['channelId'] ?? ''), 'manual rebuild did not unlock and rotate the next programme');
+ml_check(!empty($rebuilt['manuallyRebuiltAt']), 'manual rebuild timestamp missing');
+
 // Prova non distruttiva sul catalogo reale, quando disponibile localmente.
 // I dump Hostpoint sono intenzionalmente ignorati da Git e non esistono in CI.
 $realCandidates = glob(__DIR__ . '/tubetv-data*.json') ?: [];

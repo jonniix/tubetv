@@ -251,6 +251,23 @@ if (!function_exists('ml_definitions')) {
         ]);
     }
 
+    function ml_force_rebuild_station(array $data, array $definition, array $existing, int $now): array {
+        $schedule = array_values(array_filter(is_array($existing['schedule'] ?? null) ? $existing['schedule'] : [], 'is_array'));
+        $onAir = [];
+        foreach ($schedule as $item) {
+            $start = se_ts((string)($item['startDateTime'] ?? ''));
+            $end = se_ts((string)($item['endDateTime'] ?? ''));
+            if ($start <= $now && $now < $end) { $onAir = [$item]; break; }
+        }
+        $seed = $existing;
+        $seed['schedule'] = $onAir;
+        $seed['engineVersion'] = 0;
+        $seed['sourceSignature'] = '__manual_rebuild__';
+        $rebuilt = ml_tick_station($data, $definition, $seed, $now);
+        $rebuilt['manuallyRebuiltAt'] = se_iso($now);
+        return $rebuilt;
+    }
+
     function ml_tick_all(array &$data, int $now): array {
         $existing = is_array($data['webLiveChannels'] ?? null) ? $data['webLiveChannels'] : [];
         $result = [];
