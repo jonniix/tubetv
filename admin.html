@@ -5139,6 +5139,15 @@ async function persistChannelsOnline(reason='canali'){
     return result;
   }finally{manualPublishAction=previousManual;}
 }
+async function persistChannelWebLiveOnline(channelId,webLiveIds){
+  const response=await fetch('api/web-live-assign.php',{
+    method:'POST',headers:getAdminAuthHeaders(),cache:'no-store',
+    body:JSON.stringify({channelId,webLiveIds:Array.isArray(webLiveIds)?webLiveIds:[]})
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||result.ok===false)throw new Error(result.error||('HTTP '+response.status));
+  return result;
+}
 async function toggleChannelWebLive(channelId,stationId){
   if(_channelLiveSaveBusy)return;
   const channel=DB.channels.find(item=>item.id===channelId);if(!channel)return;
@@ -5148,7 +5157,7 @@ async function toggleChannelWebLive(channelId,stationId){
   _channelLiveSaveBusy=true;document.querySelectorAll('.channel-live-quick').forEach(button=>button.disabled=true);
   setChannelLiveSaveStatus('Salvataggio assegnazione sul server…','info');
   try{
-    await persistChannelsOnline('assegnazione Live rapida');
+    await persistChannelWebLiveOnline(channelId,channel.webLiveIds);
     setChannelLiveSaveStatus('✓ Assegnazione salvata online. Il bot la userà dal prossimo ciclo cron.','ok');
   }catch(error){
     channel.webLiveIds=before;saveAll();renderChannelsTable();
@@ -5166,6 +5175,7 @@ async function addChannel(){
   const isKids=document.getElementById('ch-kids').checked;
   const isTv=document.getElementById('ch-tv').checked;
   const webLiveIds=Array.from(document.querySelectorAll('#ch-web-live-list input[type=checkbox]:checked')).map(input=>input.value);
+  let savedChannelId=_editChannelId;
   const checked=document.querySelectorAll('#ch-slots-list input[type=checkbox]:checked');
   const slots=Array.from(checked).map(el=>el.value);
   const handle=nameEl?.dataset?.chHandle||extractHandle(url);
@@ -5182,8 +5192,9 @@ async function addChannel(){
     const cancel=document.getElementById('btn-cancel-ch');
     if(cancel) cancel.style.display='none';
   } else {
+    savedChannelId=uid();
     DB.channels.push({
-      id:uid(),name,url,handle,rating,slots,description,thumbnail,isKids,isTv,webLiveIds,
+      id:savedChannelId,name,url,handle,rating,slots,description,thumbnail,isKids,isTv,webLiveIds,
       active:true,enabled:true,
       trustedItalianChannel:String(DB.settings?.contentLanguage||'it').toLowerCase().startsWith('it')
     });
@@ -5195,6 +5206,7 @@ async function addChannel(){
   setChannelLiveSaveStatus('Salvataggio canale sul server…','info');
   try{
     await persistChannelsOnline('salvataggio canale e assegnazioni Live');
+    await persistChannelWebLiveOnline(savedChannelId,webLiveIds);
     setChannelLiveSaveStatus('✓ Canale e assegnazioni Live salvati online.','ok');
   }catch(error){
     setChannelLiveSaveStatus('Salvato solo nel browser: '+String(error.message||error),'err');
