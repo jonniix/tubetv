@@ -30,6 +30,12 @@ if (!function_exists('ml_definitions')) {
         $channels = array_values(array_filter(se_active_channels($data), static fn($channel): bool =>
             is_array($channel) && ml_channel_assigned($channel, $stationId)
         ));
+        $unique = [];
+        foreach ($channels as $channel) {
+            $key = se_channel_key($channel);
+            if ($key !== '' && !isset($unique[$key])) $unique[$key] = $channel;
+        }
+        $channels = array_values($unique);
         usort($channels, static fn(array $a, array $b): int =>
             strcmp(se_channel_key($a), se_channel_key($b))
         );
@@ -38,12 +44,15 @@ if (!function_exists('ml_definitions')) {
 
     function ml_recent_pool(array $data, array $channel, int $now): array {
         $minimumPublishedAt = $now - (30 * 86400);
-        $pool = [];
+        $pool = []; $seen = [];
         foreach (se_collect_videos($data) as $video) {
             if (!is_array($video) || !se_video_matches_channel($video, $channel)) continue;
             if (!se_is_playable($video, $channel, $data)) continue;
+            $videoId = se_video_id($video);
+            if ($videoId === '' || isset($seen[$videoId])) continue;
             $published = se_ts((string)($video['publishedAt'] ?? $video['createdAt'] ?? ''));
             if ($published <= 0 || $published < $minimumPublishedAt || $published > $now + 300) continue;
+            $seen[$videoId] = true;
             $video['_mlPublishedTs'] = $published;
             $pool[] = $video;
         }
@@ -76,10 +85,10 @@ if (!function_exists('ml_definitions')) {
             $promotion = $age <= 3 * 86400 && ($stats['count'] + $queuedCount) < 3;
             // New uploads receive up to three promoted airings during 72 hours.
             // Afterwards the normal loop selects the least recently aired item.
-            $score = $promotion
+            $score = ($promotion
                 ? 2000000000000 + $published - ($stats['count'] * 100000000)
-                : 1000000000000 - ($stats['last'] ?: 0) + (int)floor($published / 1000);
-            $score -= $queuedCount * 500000000000;
+                : 1000000000000 - ($stats['last'] ?: 0) + (int)floor($published / 1000))
+                - ($queuedCount * 4000000000000);
             $ranked[] = ['video' => $video, 'score' => $score, 'promotion' => $promotion, 'stats' => $stats];
         }
         usort($ranked, static fn(array $a, array $b): int => $b['score'] <=> $a['score']);
@@ -144,9 +153,34 @@ if (!function_exists('ml_definitions')) {
         $pools = [];
         foreach ($channels as $channel) $pools[se_channel_key($channel)] = ml_recent_pool($data, $channel, $now);
         $channels = array_values(array_filter($channels, static fn(array $channel): bool => !empty($pools[se_channel_key($channel)])));
+        $sourceSignature = implode('|', array_map('se_channel_key', $channels));
+
+        // Older projections and changed source sets may contain hours of stale
+        // repetitions. Keep only the programme already on air and regenerate
+        // the future from its exact end, using the current source rotation.
+        $projectionChanged = (int)($existing['engineVersion'] ?? 0) < 2
+            || (string)($existing['sourceSignature'] ?? '') !== $sourceSignature;
+        if ($projectionChanged && $schedule) {
+            $onAir = [];
+            foreach ($schedule as $item) {
+                $start = se_ts((string)($item['startDateTime'] ?? ''));
+                $end = se_ts((string)($item['endDateTime'] ?? ''));
+                if ($start <= $now && $now < $end) { $onAir = [$item]; break; }
+            }
+            $schedule = $onAir;
+        }
         $cursor = $schedule ? se_ts((string)(end($schedule)['endDateTime'] ?? '')) : $now;
         if ($cursor < $now) $cursor = $now;
         $channelCursor = max(0, (int)($existing['channelCursor'] ?? 0));
+        if ($schedule && count($channels) > 1) {
+            $lastChannelId = (string)(end($schedule)['channelId'] ?? end($schedule)['sourceChannelId'] ?? '');
+            foreach ($channels as $index => $channel) {
+                if (se_channel_key($channel) === $lastChannelId) {
+                    $channelCursor = ($index + 1) % count($channels);
+                    break;
+                }
+            }
+        }
         $queuedIds = array_values(array_filter(array_map('se_video_id', $schedule)));
         $horizon = $now + 24 * 3600;
 
@@ -210,8 +244,10 @@ if (!function_exists('ml_definitions')) {
             'liveState' => $state,
             'history' => $history,
             'channelCursor' => $channelCursor,
+            'engineVersion' => 2,
+            'sourceSignature' => $sourceSignature,
             'updatedAt' => se_iso($now),
-            'rules' => ['maxAgeDays' => 30, 'newReleaseWindowHours' => 72, 'newReleasePromotedAirings' => 3],
+            'rules' => ['maxAgeDays' => 30, 'newReleaseWindowHours' => 72, 'newReleasePromotedAirings' => 3, 'strictSourceRotation' => true, 'exhaustVideoPoolBeforeRepeat' => true],
         ]);
     }
 

@@ -1679,7 +1679,7 @@ label:has(#bot-auto-toggle){
           </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
             <button class="btn-warning" id="btn-cancel-ch" onclick="cancelEditChannel()" style="display:none;"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Annulla</button>
-            <button class="btn-add" id="btn-add-ch" onclick="addChannel()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Aggiungi Canale</button>
+            <button type="button" class="btn-add" id="btn-add-ch" onclick="addChannel()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Aggiungi Canale</button>
           </div>
         </div>
         <div class="admin-card">
@@ -3302,8 +3302,14 @@ async function tickServerManualAdmin(){
 function ytEmbed(id,autoplay=0,mute=0,controls=1,start=0){return `https://www.youtube.com/embed/${id}?autoplay=${autoplay}&mute=${mute}&controls=${controls}&rel=0&modestbranding=1&hl=it&cc_lang_pref=it&cc_load_policy=0&iv_load_policy=3${start>0?'&start='+start:''}`;}
 function ytEmbedPreview(id){return ytEmbed(id,1,1,0);}
 function extractHandle(url){
-  const m = url.match(/@([^/?&]+)/);
-  return m?m[1]:url;
+  const value=String(url||'').trim();
+  const handle=value.match(/@([^/?&#]+)/);
+  if(handle)return handle[1];
+  const channelId=value.match(/(?:youtube\.com\/)?channel\/(UC[A-Za-z0-9_-]{20,})/i);
+  if(channelId)return channelId[1];
+  const legacy=value.match(/(?:youtube\.com\/)?(?:c|user)\/([^/?&#]+)/i);
+  if(legacy)return legacy[1];
+  return /^@?[A-Za-z0-9._-]{3,}$/.test(value)?value.replace(/^@/,''):'';
 }
 function now(){return new Date();}
 function timeStr(d){return d.toTimeString().slice(0,5);}
@@ -3411,6 +3417,19 @@ async function onSpotUrlChange(url) {
 async function fetchChannelMeta(url) {
   if (!url) return null;
   const handle = extractHandle(url);
+  try{
+    const response=await fetch('api/youtube-channel-meta.php',{
+      method:'POST',headers:getAdminAuthHeaders(),cache:'no-store',body:JSON.stringify({url})
+    });
+    const data=await response.json().catch(()=>({}));
+    if(response.ok&&data.ok!==false&&data.name){
+      return {
+        name:data.name,handle:data.handle||handle,
+        youtubeChannelId:data.youtubeChannelId||'',thumbnail:data.thumbnail||null,
+        description:String(data.description||'').slice(0,200)
+      };
+    }
+  }catch(error){console.warn('[CHANNEL META SERVER]',error);}
   const ytKey = DB.ytApiKey || localStorage.getItem('tutv_ytapikey') || '';
   if (ytKey && handle) {
     try {
@@ -3430,7 +3449,7 @@ async function fetchChannelMeta(url) {
       }
     } catch(e) {}
   }
-  return { name: handle, handle: '@' + handle, thumbnail: null, description: '' };
+  return { name: handle||'', handle: handle?('@' + handle):'', thumbnail: null, description: '' };
 }
 
 let _chUrlTimer = null;
@@ -3447,7 +3466,7 @@ async function onChannelUrlChange(url) {
   const meta = await fetchChannelMeta(url);
   if (meta) {
     if (nameEl && !nameEl.value) nameEl.value = meta.name || '';
-    if (nameEl) { nameEl.placeholder = 'Es. TED Talks'; nameEl.dataset.chHandle = meta.handle || ''; nameEl.dataset.chDesc = meta.description || ''; }
+    if (nameEl) { nameEl.placeholder = 'Es. TED Talks'; nameEl.dataset.chHandle = meta.handle || ''; nameEl.dataset.chDesc = meta.description || ''; nameEl.dataset.chYoutubeId = meta.youtubeChannelId || ''; }
     if (thumbEl) {
       if (meta.thumbnail) { thumbEl.src = meta.thumbnail; thumbEl.style.display = 'block'; }
       else thumbEl.style.display = 'none';
@@ -3733,7 +3752,7 @@ function editChannel(id) {
     input.checked=(Array.isArray(c.webLiveIds)?c.webLiveIds:[]).includes(input.value);
   });
   const nameEl = document.getElementById('ch-name');
-  if (nameEl) { nameEl.dataset.chHandle = c.handle||''; nameEl.dataset.chDesc = c.description||''; }
+  if (nameEl) { nameEl.dataset.chHandle = c.handle||''; nameEl.dataset.chDesc = c.description||''; nameEl.dataset.chYoutubeId=c.youtubeChannelId||''; }
   const thumbEl = document.getElementById('ch-thumb-preview');
   if (thumbEl) { if (c.thumbnail) { thumbEl.src = c.thumbnail; thumbEl.style.display='block'; } else thumbEl.style.display='none'; }
   renderChannelSlotCheckboxes(c.slots || c.slotIds || []);
@@ -3752,7 +3771,7 @@ function cancelEditChannel() {
   document.getElementById('ch-tv').checked = false;
   document.querySelectorAll('#ch-web-live-list input[type=checkbox]').forEach(input=>{input.checked=false;});
   const nameEl = document.getElementById('ch-name');
-  if (nameEl) { nameEl.dataset.chHandle=''; nameEl.dataset.chDesc=''; }
+  if (nameEl) { nameEl.dataset.chHandle=''; nameEl.dataset.chDesc=''; nameEl.dataset.chYoutubeId=''; }
   const thumbEl = document.getElementById('ch-thumb-preview');
   if (thumbEl) { thumbEl.src=''; thumbEl.style.display='none'; }
   renderChannelSlotCheckboxes([]);
@@ -5209,6 +5228,22 @@ async function persistChannelsOnline(reason='canali',allowTokenRetry=true){
     return result;
   }finally{manualPublishAction=previousManual;}
 }
+async function persistSingleChannelOnline(action,channelOrId,allowTokenRetry=true){
+  if(!getStoredAdminToken()&&!requestWebLiveAdminToken())throw new Error('TOKEN_ADMIN_RICHIESTO');
+  const payload=action==='delete'
+    ?{action:'delete',channelId:String(channelOrId||'')}
+    :{action:'upsert',channel:channelOrId};
+  const response=await fetch('api/channel-admin.php',{
+    method:'POST',headers:getAdminAuthHeaders(),cache:'no-store',body:JSON.stringify(payload)
+  });
+  const result=await response.json().catch(()=>({}));
+  if(response.status===401&&allowTokenRetry){
+    if(!requestWebLiveAdminToken('Sessione Admin scaduta. Inserisci il token corretto:'))throw new Error('SESSIONE_ADMIN_NON_VALIDA');
+    return persistSingleChannelOnline(action,channelOrId,false);
+  }
+  if(!response.ok||result.ok===false)throw new Error(result.error||('HTTP '+response.status));
+  return result;
+}
 function requestWebLiveAdminToken(message='Per salvare le assegnazioni Live inserisci il token Admin:'){
   const value=window.prompt(message,'');
   if(value===null)return false;
@@ -5268,37 +5303,42 @@ async function addChannel(){
   const slots=Array.from(checked).map(el=>el.value);
   const handle=nameEl?.dataset?.chHandle||extractHandle(url);
   const description=nameEl?.dataset?.chDesc||'';
+  const youtubeChannelId=nameEl?.dataset?.chYoutubeId||'';
   const thumbEl=document.getElementById('ch-thumb-preview');
   const thumbnail=(thumbEl&&thumbEl.style.display!=='none')?thumbEl.src:'';
   if(!name||!url){alert('Inserisci nome e URL!');return;}
-  if(_editChannelId){
-    const idx=DB.channels.findIndex(c=>c.id===_editChannelId);
-    if(idx>=0) DB.channels[idx]={...DB.channels[idx],name,url,handle,rating,slots,description,thumbnail,isKids,isTv,webLiveIds};
-    _editChannelId=null;
-    const btn=document.getElementById('btn-add-ch');
-    if(btn) btn.innerHTML=`${IC.plus} Aggiungi Canale`;
-    const cancel=document.getElementById('btn-cancel-ch');
-    if(cancel) cancel.style.display='none';
-  } else {
+  const editingId=_editChannelId;
+  let candidate;
+  if(editingId){
+    const idx=DB.channels.findIndex(c=>c.id===editingId);
+    if(idx<0){setChannelLiveSaveStatus('Canale da modificare non trovato. Ricarica la pagina.','err');return;}
+    savedChannelId=editingId;
+    candidate={...DB.channels[idx],name,url,handle,youtubeChannelId,rating,slots,description,thumbnail,isKids,isTv,webLiveIds};
+  }else{
     savedChannelId=uid();
-    DB.channels.push({
-      id:savedChannelId,name,url,handle,rating,slots,description,thumbnail,isKids,isTv,webLiveIds,
+    candidate={
+      id:savedChannelId,name,url,handle,youtubeChannelId,rating,slots,description,thumbnail,isKids,isTv,webLiveIds,
       active:true,enabled:true,
       trustedItalianChannel:String(DB.settings?.contentLanguage||'it').toLowerCase().startsWith('it')
-    });
+    };
   }
-  syncChannelSlotRelations();
-  saveAll();
-  renderChannelsTable();
-  renderSlots();
+  const button=document.getElementById('btn-add-ch');
+  if(button){button.disabled=true;button.textContent='Salvataggio in corso...';}
   setChannelLiveSaveStatus('Salvataggio canale sul server…','info');
   try{
-    await persistChannelsOnline('salvataggio canale e assegnazioni Live');
-    await persistChannelWebLiveOnline(savedChannelId,webLiveIds);
+    await persistSingleChannelOnline('upsert',candidate);
+    const idx=DB.channels.findIndex(c=>c.id===savedChannelId);
+    if(idx>=0)DB.channels[idx]=candidate;else DB.channels.push(candidate);
+    _editChannelId=null;
+    syncChannelSlotRelations();saveAll();renderChannelsTable();renderSlots();
     setChannelLiveSaveStatus('✓ Canale e assegnazioni Live salvati online.','ok');
   }catch(error){
-    setChannelLiveSaveStatus('Salvato solo nel browser: '+String(error.message||error),'err');
+    setChannelLiveSaveStatus('Canale NON salvato: '+String(error.message||error),'err');
+    if(button){button.disabled=false;button.innerHTML=editingId?`${IC.save} Salva Modifiche`:`${IC.plus} Aggiungi Canale`;}
+    return;
   }
+  if(button){button.disabled=false;button.innerHTML=`${IC.plus} Aggiungi Canale`;}
+  const cancel=document.getElementById('btn-cancel-ch');if(cancel)cancel.style.display='none';
   document.getElementById('ch-name').value='';
   document.getElementById('ch-url').value='';
   document.getElementById('ch-rating').value=5;
@@ -5306,19 +5346,19 @@ async function addChannel(){
   document.getElementById('ch-tv').checked=false;
   document.querySelectorAll('#ch-web-live-list input[type=checkbox]').forEach(input=>{input.checked=false;});
   if(thumbEl){thumbEl.src='';thumbEl.style.display='none';}
-  if(nameEl){nameEl.dataset.chHandle='';nameEl.dataset.chDesc='';}
+  if(nameEl){nameEl.dataset.chHandle='';nameEl.dataset.chDesc='';nameEl.dataset.chYoutubeId='';}
   renderChannelSlotCheckboxes([]);
 }
 async function deleteChannel(i){
   const ch=DB.channels[i];
-  if(ch) DB.slots.forEach(s=>{ s.channelIds=(s.channelIds||[]).filter(id=>id!==ch.id); });
-  DB.channels.splice(i,1);
-  saveAll();
-  renderChannelsTable();
-  renderSlots();
+  if(!ch||!confirm(`Eliminare il canale ${ch.name||''}?`))return;
   setChannelLiveSaveStatus('Salvataggio eliminazione sul server…','info');
-  try{await persistChannelsOnline('eliminazione canale');setChannelLiveSaveStatus('✓ Canale eliminato anche online.','ok');}
-  catch(error){setChannelLiveSaveStatus('Eliminato solo nel browser: '+String(error.message||error),'err');}
+  try{
+    await persistSingleChannelOnline('delete',ch.id);
+    DB.slots.forEach(s=>{s.channelIds=(s.channelIds||[]).filter(id=>id!==ch.id);});
+    DB.channels.splice(i,1);saveAll();renderChannelsTable();renderSlots();
+    setChannelLiveSaveStatus('✓ Canale eliminato online.','ok');
+  }catch(error){setChannelLiveSaveStatus('Canale NON eliminato: '+String(error.message||error),'err');}
 }
 
 // SETTINGS

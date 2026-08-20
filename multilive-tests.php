@@ -49,10 +49,25 @@ $promotedA = array_values(array_filter($crime['schedule'], static fn(array $item
 ));
 ml_check(count($promotedA) <= 3, 'new upload received more than three promoted airings');
 
-$firstChannels = array_column(array_slice($crime['schedule'], 0, 12), 'channelId');
+$firstChannels = array_column($crime['schedule'], 'channelId');
 for ($i = 1; $i < count($firstChannels); $i++) {
     ml_check($firstChannels[$i] !== $firstChannels[$i - 1], 'same source aired twice consecutively');
 }
+ml_check(($crime['rules']['strictSourceRotation'] ?? false) === true, 'strict source rotation rule is not exposed');
+
+// A source must use every recent item before repeating one of its videos.
+$firstCrimeAVideos = array_values(array_map(
+    static fn(array $item): string => (string)$item['videoId'],
+    array_slice(array_values(array_filter($crime['schedule'], static fn(array $item): bool => ($item['channelId'] ?? '') === 'crime_a')), 0, 2)
+));
+ml_check(count(array_unique($firstCrimeAVideos)) === 2, 'same source video repeated before its recent pool was exhausted');
+
+// When only one assigned source has recent material, it may legitimately fill the station alone.
+$singleRecentData = $data;
+$singleRecentData['videos'] = array_values(array_filter($singleRecentData['videos'], static fn(array $item): bool => ($item['channelId'] ?? '') === 'crime_a'));
+$singleRecent = ml_tick_station($singleRecentData, ml_definitions()['crime'], [], $now);
+ml_check($singleRecent['sourceCount'] === 1, 'source without recent videos was not excluded');
+ml_check(count(array_unique(array_column(array_slice($singleRecent['schedule'], 0, 4), 'channelId'))) === 1, 'single recent source did not fill the station');
 
 $docu = $stations['docu'];
 ml_check($docu['sourceCount'] === 1 && ($docu['liveQueue'][0]['channelId'] ?? '') === 'crime_a', 'one source cannot belong to multiple stations');
