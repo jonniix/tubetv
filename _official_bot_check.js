@@ -43,6 +43,7 @@ check(iptvLib.includes("'ADMIN_TOKEN_NOT_CONFIGURED'], 503"), 'IPTV Admin non ne
 check(botV3.includes("if ($token === '') return false;"), 'Bot V3 accetta ancora mutazioni senza token');
 check(admin.includes('configureAdminToken()') && admin.includes('admin-security-token-btn'), 'Admin non offre la configurazione locale del token');
 check(admin.includes('ch-web-live-list') && admin.includes('webLiveIds'), 'Assegnazione sorgenti ai canali Live Web secondari assente');
+check(admin.includes('toggleChannelWebLive') && admin.includes('persistChannelsOnline') && admin.includes("data:{channels:safeChannels}"), 'Salvataggio rapido online delle assegnazioni Live assente');
 check(botV3Engine.includes('ml_tick_all($data, $now)') && multiLive.includes("'maxAgeDays' => 30") && multiLive.includes("'newReleaseWindowHours' => 72"), 'Motore multi-canale non collegato al bot ufficiale o regole mancanti');
 check(index.includes("selectWebLiveChannel('crime')") && index.includes("selectWebLiveChannel('docu')"), 'Selettori Live Web desktop incompleti');
 check(fs.readFileSync('mobile.html','utf8').includes('selectMobileWebLiveChannel') && fs.readFileSync('mobile.html','utf8').includes('mobile-live-tabs'), 'Selettori Live Web mobile incompleti');

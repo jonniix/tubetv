@@ -334,6 +334,11 @@ nav .nav-links button:hover, nav .nav-links button.active { color: var(--text); 
 .manual-badge{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.5px;}
 .event-badge{background:rgba(234,179,8,.15);color:#fbbf24;border:1px solid rgba(234,179,8,.3);font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.5px;}
 .slot-chip{display:inline-block;background:rgba(124,58,237,.15);color:#a78bfa;border-radius:4px;padding:1px 6px;font-size:.68rem;margin:1px;white-space:nowrap;}
+.channel-live-quick{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.035);color:var(--muted);border-radius:999px;padding:5px 8px;font-size:.59rem;font-weight:800;line-height:1;cursor:pointer;white-space:nowrap;transition:.16s ease}
+.channel-live-quick:hover{border-color:rgba(230,57,70,.45);color:#fff}
+.channel-live-quick.active{border-color:rgba(52,211,153,.42);background:rgba(16,185,129,.14);color:#6ee7b7;box-shadow:inset 0 0 0 1px rgba(52,211,153,.08)}
+.channel-live-quick:disabled{opacity:.48;cursor:wait}
+.channel-live-quick-wrap{display:flex;flex-wrap:wrap;gap:4px;min-width:190px}
 :root{--gold:#f59e0b;}
 
 /* ── LIVE VIEWPORT-FIT ── */
@@ -1656,8 +1661,9 @@ label:has(#bot-auto-toggle){
         </div>
         <div class="admin-card">
           <h3><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg> Canali registrati</h3>
+          <div id="channel-live-save-status" style="display:none;margin:-.35rem 0 .8rem;padding:.55rem .7rem;border-radius:8px;font-size:.72rem;"></div>
           <table class="admin-table">
-            <thead><tr><th></th><th>Nome</th><th>Stelle</th><th>Fasce / Live 24/7</th><th>Azioni</th></tr></thead>
+            <thead><tr><th></th><th>Nome</th><th>Stelle</th><th>Fasce / Live 24/7</th><th>Assegna rapidamente</th><th>Azioni</th></tr></thead>
             <tbody id="channels-table"></tbody>
           </table>
           <div id="channels-empty" style="text-align:center;padding:2rem;color:var(--muted);display:none;">Nessun canale ancora.</div>
@@ -5100,12 +5106,15 @@ function renderChannelsTable(){
     const slotChips=(c.slots||[]).map(sid=>{const s=DB.slots.find(sl=>sl.id===sid);return s?`<span class="slot-chip">${s.name||s.start}</span>`:''}).join('');
     const liveNames={live2:'LIVE WEB 2',kids:'LIVE KIDS',crime:'LIVE CRIME',docu:'DOCU & LIFESTYLE'};
     const liveChips=(Array.isArray(c.webLiveIds)?c.webLiveIds:[]).map(id=>liveNames[id]?`<span class="badge badge-purple" style="font-size:.6rem;margin:2px;">${liveNames[id]}</span>`:'').join('');
+    const assignedLiveIds=Array.isArray(c.webLiveIds)?c.webLiveIds:[];
+    const quickLive=[['live2','WEB 2'],['kids','KIDS'],['crime','CRIME'],['docu','DOCU & LIFE']].map(([id,label])=>`<button type="button" class="channel-live-quick${assignedLiveIds.includes(id)?' active':''}" onclick="toggleChannelWebLive('${c.id}','${id}')" title="${assignedLiveIds.includes(id)?'Rimuovi da':'Inserisci in'} ${liveNames[id]}">${assignedLiveIds.includes(id)?'✓ ':''}${label}</button>`).join('');
     const chips=[slotChips,liveChips].filter(Boolean).join(' ');
     return `<tr>
       <td style="padding:6px 8px;">${c.thumbnail?`<img src="${c.thumbnail}" style="width:54px;height:30px;object-fit:cover;border-radius:4px;">`:''}</td>
       <td style="font-weight:500;">${c.name}${c.isTv?' <span class="badge badge-purple" style="font-size:.62rem;padding:1px 6px;vertical-align:middle;">📺 TV</span>':''} ${channelItalianStatusTag(c)}<div style="font-size:.72rem;color:var(--muted);">${c.handle||''}</div></td>
       <td>${stars}</td>
       <td style="max-width:180px;">${chips||'<span style="color:var(--muted);font-size:.75rem;">—</span>'}</td>
+      <td><div class="channel-live-quick-wrap">${quickLive}</div></td>
       <td style="display:flex;gap:.4rem;">
         <button class="btn-warning" onclick="editChannel('${c.id}')">${IC.edit} Modifica</button>
         <button class="btn-danger" onclick="deleteChannel(${i})">${IC.trash}</button>
@@ -5113,7 +5122,43 @@ function renderChannelsTable(){
     </tr>`;
   }).join('');
 }
-function addChannel(){
+
+let _channelLiveSaveBusy=false;
+function setChannelLiveSaveStatus(message,type='info'){
+  const box=document.getElementById('channel-live-save-status');if(!box)return;
+  const palette={info:['rgba(59,130,246,.1)','#93c5fd','rgba(59,130,246,.25)'],ok:['rgba(16,185,129,.1)','#6ee7b7','rgba(16,185,129,.25)'],err:['rgba(239,68,68,.1)','#fca5a5','rgba(239,68,68,.25)']}[type];
+  box.style.display='block';box.style.background=palette[0];box.style.color=palette[1];box.style.border='1px solid '+palette[2];box.textContent=message;
+}
+async function persistChannelsOnline(reason='canali'){
+  const previousManual=manualPublishAction;manualPublishAction=true;
+  try{
+    const safeChannels=(DB.channels||[]).map(({apiKey,...channel})=>channel);
+    const response=await safeAdminSaveData({filename:'tubetv-data.json',merge:true,preserveRuntime:true,data:{channels:safeChannels}},reason);
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||result.ok===false)throw new Error(result.error||('HTTP '+response.status));
+    return result;
+  }finally{manualPublishAction=previousManual;}
+}
+async function toggleChannelWebLive(channelId,stationId){
+  if(_channelLiveSaveBusy)return;
+  const channel=DB.channels.find(item=>item.id===channelId);if(!channel)return;
+  const before=Array.isArray(channel.webLiveIds)?[...channel.webLiveIds]:[];
+  const selected=new Set(before);selected.has(stationId)?selected.delete(stationId):selected.add(stationId);
+  channel.webLiveIds=[...selected];saveAll();renderChannelsTable();
+  _channelLiveSaveBusy=true;document.querySelectorAll('.channel-live-quick').forEach(button=>button.disabled=true);
+  setChannelLiveSaveStatus('Salvataggio assegnazione sul server…','info');
+  try{
+    await persistChannelsOnline('assegnazione Live rapida');
+    setChannelLiveSaveStatus('✓ Assegnazione salvata online. Il bot la userà dal prossimo ciclo cron.','ok');
+  }catch(error){
+    channel.webLiveIds=before;saveAll();renderChannelsTable();
+    setChannelLiveSaveStatus('Salvataggio non riuscito: '+String(error.message||error),'err');
+  }finally{
+    _channelLiveSaveBusy=false;document.querySelectorAll('.channel-live-quick').forEach(button=>button.disabled=false);
+  }
+}
+
+async function addChannel(){
   const nameEl=document.getElementById('ch-name');
   const name=(nameEl?.value||'').trim();
   const url=document.getElementById('ch-url').value.trim();
@@ -5147,6 +5192,13 @@ function addChannel(){
   saveAll();
   renderChannelsTable();
   renderSlots();
+  setChannelLiveSaveStatus('Salvataggio canale sul server…','info');
+  try{
+    await persistChannelsOnline('salvataggio canale e assegnazioni Live');
+    setChannelLiveSaveStatus('✓ Canale e assegnazioni Live salvati online.','ok');
+  }catch(error){
+    setChannelLiveSaveStatus('Salvato solo nel browser: '+String(error.message||error),'err');
+  }
   document.getElementById('ch-name').value='';
   document.getElementById('ch-url').value='';
   document.getElementById('ch-rating').value=5;
@@ -5157,13 +5209,16 @@ function addChannel(){
   if(nameEl){nameEl.dataset.chHandle='';nameEl.dataset.chDesc='';}
   renderChannelSlotCheckboxes([]);
 }
-function deleteChannel(i){
+async function deleteChannel(i){
   const ch=DB.channels[i];
   if(ch) DB.slots.forEach(s=>{ s.channelIds=(s.channelIds||[]).filter(id=>id!==ch.id); });
   DB.channels.splice(i,1);
   saveAll();
   renderChannelsTable();
   renderSlots();
+  setChannelLiveSaveStatus('Salvataggio eliminazione sul server…','info');
+  try{await persistChannelsOnline('eliminazione canale');setChannelLiveSaveStatus('✓ Canale eliminato anche online.','ok');}
+  catch(error){setChannelLiveSaveStatus('Eliminato solo nel browser: '+String(error.message||error),'err');}
 }
 
 // SETTINGS
