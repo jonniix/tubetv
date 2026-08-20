@@ -18,6 +18,7 @@ if (!function_exists('ml_definitions')) {
             'crime' => ['id' => 'crime', 'name' => 'Live Crime', 'shortName' => 'Live Crime'],
             'docu'  => ['id' => 'docu',  'name' => 'Live Docu & Lifestyle', 'shortName' => 'Docu & Lifestyle'],
             'cucina' => ['id' => 'cucina', 'name' => 'Live Cucina', 'shortName' => 'Live Cucina'],
+            'girl' => ['id' => 'girl', 'name' => 'Live Girl', 'shortName' => 'Live Girl'],
         ];
     }
 

@@ -20,7 +20,7 @@ function channel_clean(array $channel): array {
     $channel['rating'] = max(1, min(10, (int)($channel['rating'] ?? 5)));
     $channel['slots'] = array_values(array_unique(array_filter(array_map('strval', is_array($channel['slots'] ?? null) ? $channel['slots'] : []))));
     $channel['webLiveIds'] = array_values(array_unique(array_intersect(
-        ['live2', 'kids', 'crime', 'docu', 'cucina'],
+        ['live2', 'kids', 'crime', 'docu', 'cucina', 'girl'],
         array_map('strval', is_array($channel['webLiveIds'] ?? null) ? $channel['webLiveIds'] : [])
     )));
     foreach (['active', 'enabled'] as $key) $channel[$key] = (bool)($channel[$key] ?? true);

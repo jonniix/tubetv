@@ -57,7 +57,7 @@ check(index.includes("selectWebLiveChannel('crime')") && index.includes("selectW
 check(fs.readFileSync('mobile.html','utf8').includes('selectMobileWebLiveChannel') && fs.readFileSync('mobile.html','utf8').includes('mobile-live-tabs'), 'Selettori Live Web mobile incompleti');
 check(index.includes('Live Web 1') && index.includes('Live Docu &amp; Lifestyle') && !index.includes('>Principale</button>'), 'Nomi pubblici dei canali Live non aggiornati');
 check(index.includes('id="live-channel-bug"') && fs.readFileSync('mobile.html','utf8').includes('id="mobile-live-channel-bug"'), 'Logo dinamico del canale assente dal player');
-for (const logo of ['live-web-1.svg','live-web-2.svg','live-kids.svg','live-crime.svg','live-docu-lifestyle.svg','live-cucina.svg']) {
+for (const logo of ['live-web-1.svg','live-web-2.svg','live-kids.svg','live-crime.svg','live-docu-lifestyle.svg','live-cucina.svg','live-girl.svg']) {
   check(fs.existsSync(`icons/${logo}`), `Logo canale mancante: ${logo}`);
 }
 check(htaccess.includes('node_modules') && htaccess.includes('live-presence\\.json') && htaccess.includes('index\\.html\\.bak'), 'Regole web per residui e runtime sensibili incomplete');

@@ -15,7 +15,7 @@ if (!function_exists('wla_read_assignments')) {
         $decoded = is_file($path) ? json_decode((string)@file_get_contents($path), true) : [];
         $assignments = is_array($decoded['assignments'] ?? null) ? $decoded['assignments'] : [];
         $clean = [];
-        $allowed = ['live2', 'kids', 'crime', 'docu', 'cucina'];
+        $allowed = ['live2', 'kids', 'crime', 'docu', 'cucina', 'girl'];
         foreach ($assignments as $channelId => $stationIds) {
             if (!is_string($channelId) || $channelId === '' || !is_array($stationIds)) continue;
             $clean[$channelId] = array_values(array_unique(array_intersect($allowed, array_map('strval', $stationIds))));
@@ -31,7 +31,7 @@ if (!function_exists('wla_read_assignments')) {
         }
         try {
             $assignments = wla_read_assignments();
-            $allowed = ['live2', 'kids', 'crime', 'docu', 'cucina'];
+            $allowed = ['live2', 'kids', 'crime', 'docu', 'cucina', 'girl'];
             $assignments[$channelId] = array_values(array_unique(array_intersect($allowed, array_map('strval', $stationIds))));
             $payload = ['version' => 1, 'updatedAt' => gmdate('c'), 'assignments' => $assignments];
             $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

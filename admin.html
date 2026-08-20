@@ -1674,6 +1674,7 @@ label:has(#bot-auto-toggle){
               <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="crime" style="width:auto;margin-right:5px;"> Live Crime</label>
               <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="docu" style="width:auto;margin-right:5px;"> Live Docu &amp; Lifestyle</label>
               <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="cucina" style="width:auto;margin-right:5px;"> Live Cucina</label>
+              <label class="slot-chip" style="cursor:pointer;"><input type="checkbox" value="girl" style="width:auto;margin-right:5px;"> Live Girl</label>
             </div>
             <small style="color:var(--muted);">I secondari ignorano le fasce: alternano le fonti tutto il giorno, usano video entro 30 giorni e spingono le novità per 72 ore.</small>
           </div>
@@ -1685,6 +1686,7 @@ label:has(#bot-auto-toggle){
               <button type="button" class="btn-warning secondary-live-rebuild" onclick="rebuildSecondaryLive('crime','Live Crime',this)">↻ Live Crime</button>
               <button type="button" class="btn-warning secondary-live-rebuild" onclick="rebuildSecondaryLive('docu','Live Docu & Lifestyle',this)">↻ Docu & Lifestyle</button>
               <button type="button" class="btn-warning secondary-live-rebuild" onclick="rebuildSecondaryLive('cucina','Live Cucina',this)">↻ Live Cucina</button>
+              <button type="button" class="btn-warning secondary-live-rebuild" onclick="rebuildSecondaryLive('girl','Live Girl',this)">↻ Live Girl</button>
             </div>
             <small style="color:var(--muted);">Mantiene il video già in onda e rigenera immediatamente tutti i successivi usando le fonti assegnate adesso.</small>
           </div>
@@ -5228,10 +5230,10 @@ function renderChannelsTable(){
   tb.innerHTML=DB.channels.map((c,i)=>{
     const stars=renderStars(c.rating||5);
     const slotChips=(c.slots||[]).map(sid=>{const s=DB.slots.find(sl=>sl.id===sid);return s?`<span class="slot-chip">${s.name||s.start}</span>`:''}).join('');
-    const liveNames={live2:'LIVE WEB 2',kids:'LIVE KIDS',crime:'LIVE CRIME',docu:'DOCU & LIFESTYLE',cucina:'LIVE CUCINA'};
+    const liveNames={live2:'LIVE WEB 2',kids:'LIVE KIDS',crime:'LIVE CRIME',docu:'DOCU & LIFESTYLE',cucina:'LIVE CUCINA',girl:'LIVE GIRL'};
     const liveChips=(Array.isArray(c.webLiveIds)?c.webLiveIds:[]).map(id=>liveNames[id]?`<span class="badge badge-purple" style="font-size:.6rem;margin:2px;">${liveNames[id]}</span>`:'').join('');
     const assignedLiveIds=Array.isArray(c.webLiveIds)?c.webLiveIds:[];
-    const quickLive=[['live2','WEB 2'],['kids','KIDS'],['crime','CRIME'],['docu','DOCU & LIFE'],['cucina','CUCINA']].map(([id,label])=>`<button type="button" class="channel-live-quick${assignedLiveIds.includes(id)?' active':''}" onclick="toggleChannelWebLive('${c.id}','${id}')" title="${assignedLiveIds.includes(id)?'Rimuovi da':'Inserisci in'} ${liveNames[id]}">${assignedLiveIds.includes(id)?'✓ ':''}${label}</button>`).join('');
+    const quickLive=[['live2','WEB 2'],['kids','KIDS'],['crime','CRIME'],['docu','DOCU & LIFE'],['cucina','CUCINA'],['girl','GIRL']].map(([id,label])=>`<button type="button" class="channel-live-quick${assignedLiveIds.includes(id)?' active':''}" onclick="toggleChannelWebLive('${c.id}','${id}')" title="${assignedLiveIds.includes(id)?'Rimuovi da':'Inserisci in'} ${liveNames[id]}">${assignedLiveIds.includes(id)?'✓ ':''}${label}</button>`).join('');
     const chips=[slotChips,liveChips].filter(Boolean).join(' ');
     return `<tr>
       <td style="padding:6px 8px;">${c.thumbnail?`<img src="${c.thumbnail}" style="width:54px;height:30px;object-fit:cover;border-radius:4px;">`:''}</td>
