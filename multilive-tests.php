@@ -67,24 +67,31 @@ $after = ml_tick_all($data, $transitionAt)['crime'];
 ml_check(count($after['history']) >= 1, 'completed secondary programme was not recorded');
 ml_check(($after['liveQueue'][0]['id'] ?? '') === ($crime['schedule'][1]['id'] ?? ''), 'secondary channel did not advance at the exact boundary');
 
-// Prova non distruttiva sul catalogo reale: seleziona in memoria tre sorgenti
-// che possiedono contenuti validi negli ultimi 30 giorni.
-$realPath = __DIR__ . '/data/tubetv-data.json';
-$real = json_decode((string)file_get_contents($realPath), true);
-ml_check(is_array($real), 'real TubeTV JSON is not readable');
-$real['webLiveChannels'] = [];
-$assigned = 0;
-$real['channels'] = is_array($real['channels'] ?? null) ? $real['channels'] : [];
-foreach ($real['channels'] as &$realChannel) {
-    if (!is_array($realChannel) || $assigned >= 3 || !ml_recent_pool($real, $realChannel, time())) continue;
-    $realChannel['webLiveIds'] = ['docu'];
-    $assigned++;
+// Prova non distruttiva sul catalogo reale, quando disponibile localmente.
+// I dump Hostpoint sono intenzionalmente ignorati da Git e non esistono in CI.
+$realCandidates = glob(__DIR__ . '/tubetv-data*.json') ?: [];
+$serverDataPath = __DIR__ . '/data/tubetv-data.json';
+if (is_file($serverDataPath)) $realCandidates[] = $serverDataPath;
+usort($realCandidates, static fn(string $a, string $b): int => filemtime($b) <=> filemtime($a));
+$realPath = $realCandidates[0] ?? null;
+if ($realPath !== null) {
+    $real = json_decode((string)file_get_contents($realPath), true);
+    ml_check(is_array($real), 'real TubeTV JSON is not readable');
+    $real['webLiveChannels'] = [];
+    $assigned = 0;
+    $real['channels'] = is_array($real['channels'] ?? null) ? $real['channels'] : [];
+    foreach ($real['channels'] as &$realChannel) {
+        if (!is_array($realChannel) || $assigned >= 3 || !ml_recent_pool($real, $realChannel, time())) continue;
+        $realChannel['webLiveIds'] = ['docu'];
+        $assigned++;
+    }
+    unset($realChannel);
+    ml_check($assigned >= 1, 'real catalog has no recent playable source for multi-live');
+    $realDocu = ml_tick_all($real, time())['docu'];
+    ml_check(($realDocu['sourceCount'] ?? 0) === $assigned, 'real source assignments were not respected');
+    ml_check(count($realDocu['liveQueue'] ?? []) === 3, 'real catalog did not generate current plus two');
+    ml_check(se_ts((string)end($realDocu['schedule'])['endDateTime']) >= time() + 23 * 3600, 'real catalog does not cover the next 24 hours');
+    echo 'multilive-real-data PASS (' . basename($realPath) . ")\n";
 }
-unset($realChannel);
-ml_check($assigned >= 1, 'real catalog has no recent playable source for multi-live');
-$realDocu = ml_tick_all($real, time())['docu'];
-ml_check(($realDocu['sourceCount'] ?? 0) === $assigned, 'real source assignments were not respected');
-ml_check(count($realDocu['liveQueue'] ?? []) === 3, 'real catalog did not generate current plus two');
-ml_check(se_ts((string)end($realDocu['schedule'])['endDateTime']) >= time() + 23 * 3600, 'real catalog does not cover the next 24 hours');
 
 echo "multilive-tests PASS\n";
