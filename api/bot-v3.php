@@ -34,7 +34,8 @@ if ($method === 'GET' && $action === 'status' && !$isCron) { echo json_encode(v3
 if (PHP_SAPI !== 'cli' && !v3_auth()) { http_response_code(401); echo json_encode(['ok' => false, 'error' => 'UNAUTHORIZED']); exit; }
 
 $lock = fopen(V3_LOCK, 'c');
-if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) { http_response_code(409); echo json_encode(['ok' => false, 'error' => 'TICK_LOCKED']); exit; }
+$lockMode = $action === 'rebuild_secondary' ? LOCK_EX : (LOCK_EX | LOCK_NB);
+if (!$lock || !flock($lock, $lockMode)) { http_response_code(409); echo json_encode(['ok' => false, 'error' => 'TICK_LOCKED']); exit; }
 $data = v3_read(); wla_apply_assignments($data); $now = time();
 if ($action === 'reset') { $data['botV3'] = ['enabled' => true, 'engineVersion' => 3, 'resetAt' => se_iso($now), 'tickSequence' => 0, 'recoveryCount' => 0]; $data['botV3Decisions'] = []; }
 elseif ($action === 'enable') { $data['botV3'] = is_array($data['botV3'] ?? null) ? $data['botV3'] : []; $data['botV3']['enabled'] = true; $data['botV3']['enabledAt'] = se_iso($now); }
