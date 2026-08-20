@@ -1860,7 +1860,7 @@ nav { z-index:800 !important; }
       <div class="live-player-card">
         <div class="live-player-wrap" id="live-player-wrap">
           <iframe id="live-iframe" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture"></iframe>
-          <img class="live-channel-bug" id="live-channel-bug" src="icons/live-web-1.svg" alt="TubeTV Live Web 1">
+          <img class="live-channel-bug" id="live-channel-bug" src="icons/live-web-1.svg?v=20260821" alt="TubeTV Live Web 1">
           <button id="live-start-gate" class="live-start-gate" type="button" onclick="startLiveFromUserGesture()"><span>Tocca per avviare la diretta</span></button>
           <div id="live-preload-wrap" style="display:none"><div id="live-preload-player"></div></div>
           <div id="live-ad-overlay">
@@ -2299,9 +2299,9 @@ let DB={videos:[],slots:[],spots:[],channels:[],palinsesto:[],schedule:[],schedu
 window.DB = DB;
 const APP=DB;
 const WEB_LIVE_DEFINITIONS={
-  main:{name:'Live Web 1',logo:'icons/live-web-1.svg',description:'Palinsesto intelligente TubeTV con fasce orarie e programmazione dinamica.'},
-  live2:{name:'Live Web 2',logo:'icons/live-web-2.svg',description:'Rotazione 24/7 delle fonti assegnate, con priorità alle novità.'},
-  kids:{name:'Live Kids',logo:'icons/live-kids.svg',description:'Canale lineare Kids sempre attivo con contenuti recenti.'},
+  main:{name:'Live Web 1',logo:'icons/live-web-1.svg?v=20260821',description:'Palinsesto intelligente TubeTV con fasce orarie e programmazione dinamica.'},
+  live2:{name:'Live Web 2',logo:'icons/live-web-2.svg?v=20260821',description:'Rotazione 24/7 delle fonti assegnate, con priorità alle novità.'},
+  kids:{name:'Live Kids',logo:'icons/live-kids.svg?v=20260821',description:'Canale lineare Kids sempre attivo con contenuti recenti.'},
   crime:{name:'Live Crime',logo:'icons/live-crime.svg',description:'Crime 24/7: le fonti si alternano una alla volta.'},
   docu:{name:'Live Docu & Lifestyle',logo:'icons/live-docu-lifestyle.svg',description:'Documentari e lifestyle recenti in rotazione continua 24/7.'},
   cucina:{name:'Live Cucina',logo:'icons/live-cucina.svg',description:'Ricette, chef e cultura gastronomica in rotazione continua 24/7.'},
