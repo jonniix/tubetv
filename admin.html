@@ -2212,7 +2212,35 @@ label:has(#bot-auto-toggle){
 // DATA STORE
 // ══════════════════════════════════════════════
 function load(k,def){try{return JSON.parse(localStorage.getItem('tutv_'+k))||def;}catch{return def;}}
-function save(k,v){localStorage.setItem('tutv_'+k,JSON.stringify(v));}
+function save(k,v){
+  const storageKey='tutv_'+k;
+  let serialized='';
+  try{serialized=JSON.stringify(v);}catch(error){console.warn('[ADMIN CACHE] JSON non serializzabile',k,error);return false;}
+  // Il JSON online è la sorgente ufficiale. Evita di duplicare cataloghi enormi
+  // nel localStorage del browser (quota normalmente limitata a pochi MB).
+  if(serialized.length>350000){
+    try{localStorage.removeItem(storageKey);}catch(error){}
+    return false;
+  }
+  try{localStorage.setItem(storageKey,serialized);return true;}
+  catch(error){
+    const quotaError=error?.name==='QuotaExceededError'||error?.name==='NS_ERROR_DOM_QUOTA_REACHED'||error?.code===22;
+    if(!quotaError)throw error;
+    try{
+      const removable=[];
+      for(let index=0;index<localStorage.length;index++){
+        const key=localStorage.key(index);
+        if(!key||!key.startsWith('tutv_')||key===storageKey)continue;
+        const value=localStorage.getItem(key)||'';
+        if(value.length>350000)removable.push(key);
+      }
+      removable.forEach(key=>localStorage.removeItem(key));
+      localStorage.setItem(storageKey,serialized);
+      console.info('[ADMIN CACHE] Rimossi duplicati locali grandi:',removable);
+      return true;
+    }catch(retryError){console.warn('[ADMIN CACHE] Quota piena, dato disponibile solo online:',k);return false;}
+  }
+}
 
 const DEFAULT_CATEGORIES=['Divulgazione','Fai da te','Cucina','Musica','Sport','News','Intrattenimento','Gaming','Viaggi','Cinema','Podcast','Generale'];
 
@@ -5331,8 +5359,11 @@ async function addChannel(){
     const idx=DB.channels.findIndex(c=>c.id===savedChannelId);
     if(idx>=0)DB.channels[idx]=candidate;else DB.channels.push(candidate);
     _editChannelId=null;
-    syncChannelSlotRelations();saveAll();renderChannelsTable();renderSlots();
-    setChannelLiveSaveStatus('✓ Canale e assegnazioni Live salvati online.','ok');
+    syncChannelSlotRelations();
+    const cachedChannels=save('channels',DB.channels),cachedSlots=save('slots',DB.slots);
+    const cached=cachedChannels&&cachedSlots;
+    renderChannelsTable();renderSlots();
+    setChannelLiveSaveStatus(cached?'✓ Canale e assegnazioni Live salvati online.':'✓ Canale salvato online. Cache browser piena: al prossimo accesso verrà ricaricato dal server.','ok');
   }catch(error){
     setChannelLiveSaveStatus('Canale NON salvato: '+String(error.message||error),'err');
     if(button){button.disabled=false;button.innerHTML=editingId?`${IC.save} Salva Modifiche`:`${IC.plus} Aggiungi Canale`;}
@@ -5357,7 +5388,7 @@ async function deleteChannel(i){
   try{
     await persistSingleChannelOnline('delete',ch.id);
     DB.slots.forEach(s=>{s.channelIds=(s.channelIds||[]).filter(id=>id!==ch.id);});
-    DB.channels.splice(i,1);saveAll();renderChannelsTable();renderSlots();
+    DB.channels.splice(i,1);save('channels',DB.channels);save('slots',DB.slots);renderChannelsTable();renderSlots();
     setChannelLiveSaveStatus('✓ Canale eliminato online.','ok');
   }catch(error){setChannelLiveSaveStatus('Canale NON eliminato: '+String(error.message||error),'err');}
 }
