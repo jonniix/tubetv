@@ -5129,22 +5129,43 @@ function setChannelLiveSaveStatus(message,type='info'){
   const palette={info:['rgba(59,130,246,.1)','#93c5fd','rgba(59,130,246,.25)'],ok:['rgba(16,185,129,.1)','#6ee7b7','rgba(16,185,129,.25)'],err:['rgba(239,68,68,.1)','#fca5a5','rgba(239,68,68,.25)']}[type];
   box.style.display='block';box.style.background=palette[0];box.style.color=palette[1];box.style.border='1px solid '+palette[2];box.textContent=message;
 }
-async function persistChannelsOnline(reason='canali'){
+async function persistChannelsOnline(reason='canali',allowTokenRetry=true){
+  if(!getStoredAdminToken()&&!requestWebLiveAdminToken())throw new Error('TOKEN_ADMIN_RICHIESTO');
   const previousManual=manualPublishAction;manualPublishAction=true;
   try{
     const safeChannels=(DB.channels||[]).map(({apiKey,...channel})=>channel);
     const response=await safeAdminSaveData({filename:'tubetv-data.json',merge:true,preserveRuntime:true,data:{channels:safeChannels}},reason);
     const result=await response.json().catch(()=>({}));
+    if(response.status===401&&allowTokenRetry){
+      if(!requestWebLiveAdminToken('Il token salvato non è valido. Inserisci il token Admin corretto:'))throw new Error('TOKEN_ADMIN_NON_VALIDO');
+      return persistChannelsOnline(reason,false);
+    }
     if(!response.ok||result.ok===false)throw new Error(result.error||('HTTP '+response.status));
     return result;
   }finally{manualPublishAction=previousManual;}
 }
-async function persistChannelWebLiveOnline(channelId,webLiveIds){
+function requestWebLiveAdminToken(message='Per salvare le assegnazioni Live inserisci il token Admin:'){
+  const value=window.prompt(message,'');
+  if(value===null)return false;
+  const token=String(value).trim();if(!token)return false;
+  try{
+    for(const key of ['tubetv_admin_token','tutv_admin_token','admin_token','bot_admin_token'])localStorage.removeItem(key);
+    localStorage.setItem('tubetv_admin_token',token);
+    updateAdminSecurityBadge();
+    return true;
+  }catch(error){setChannelLiveSaveStatus('Impossibile memorizzare il token: '+String(error.message||error),'err');return false;}
+}
+async function persistChannelWebLiveOnline(channelId,webLiveIds,allowTokenRetry=true){
+  if(!getStoredAdminToken()&&!requestWebLiveAdminToken())throw new Error('TOKEN_ADMIN_RICHIESTO');
   const response=await fetch('api/web-live-assign.php',{
     method:'POST',headers:getAdminAuthHeaders(),cache:'no-store',
     body:JSON.stringify({channelId,webLiveIds:Array.isArray(webLiveIds)?webLiveIds:[]})
   });
   const result=await response.json().catch(()=>({}));
+  if(response.status===401&&allowTokenRetry){
+    if(!requestWebLiveAdminToken('Il token salvato non è valido. Inserisci il token Admin corretto:'))throw new Error('TOKEN_ADMIN_NON_VALIDO');
+    return persistChannelWebLiveOnline(channelId,webLiveIds,false);
+  }
   if(!response.ok||result.ok===false)throw new Error(result.error||('HTTP '+response.status));
   return result;
 }
@@ -5153,15 +5174,17 @@ async function toggleChannelWebLive(channelId,stationId){
   const channel=DB.channels.find(item=>item.id===channelId);if(!channel)return;
   const before=Array.isArray(channel.webLiveIds)?[...channel.webLiveIds]:[];
   const selected=new Set(before);selected.has(stationId)?selected.delete(stationId):selected.add(stationId);
-  channel.webLiveIds=[...selected];saveAll();renderChannelsTable();
+  const requested=[...selected];
   _channelLiveSaveBusy=true;document.querySelectorAll('.channel-live-quick').forEach(button=>button.disabled=true);
-  setChannelLiveSaveStatus('Salvataggio assegnazione sul server…','info');
+  setChannelLiveSaveStatus('Verifica e salvataggio assegnazione sul server…','info');
   try{
-    await persistChannelWebLiveOnline(channelId,channel.webLiveIds);
+    await persistChannelWebLiveOnline(channelId,requested);
+    channel.webLiveIds=requested;saveAll();renderChannelsTable();
     setChannelLiveSaveStatus('✓ Assegnazione salvata online. Il bot la userà dal prossimo ciclo cron.','ok');
   }catch(error){
     channel.webLiveIds=before;saveAll();renderChannelsTable();
-    setChannelLiveSaveStatus('Salvataggio non riuscito: '+String(error.message||error),'err');
+    const detail=String(error.message||error);
+    setChannelLiveSaveStatus('Assegnazione NON salvata: '+detail+'. Controlla il token Admin e riprova.','err');
   }finally{
     _channelLiveSaveBusy=false;document.querySelectorAll('.channel-live-quick').forEach(button=>button.disabled=false);
   }
