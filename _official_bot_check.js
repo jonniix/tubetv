@@ -47,6 +47,8 @@ check(botV3.includes("if ($token === '') return false;"), 'Bot V3 accetta ancora
 check(admin.includes('configureAdminToken()') && admin.includes('admin-security-token-btn'), 'Admin non offre la configurazione locale del token');
 check(admin.includes('ch-web-live-list') && admin.includes('webLiveIds'), 'Assegnazione sorgenti ai canali Live Web secondari assente');
 check(admin.includes('toggleChannelWebLive') && admin.includes('persistChannelWebLiveOnline') && admin.includes('api/web-live-assign.php'), 'Salvataggio rapido online delle assegnazioni Live assente');
+const quickAssignBody = admin.match(/async function toggleChannelWebLive[\s\S]*?\n}\n\nasync function addChannel/)?.[0] || '';
+check(quickAssignBody.includes("save('channels',DB.channels)") && !quickAssignBody.includes('saveAll()'), 'Assegnazione rapida risalva ancora tutto il catalogo locale');
 check(webLiveAssign.includes('wla_write_assignment') && webLiveAssignmentsLib.includes('.web-live-assignments.lock') && webLiveAssignmentsLib.includes("$channel['webLiveIds'] = $assignments[$channelId]") && botV3.includes('wla_apply_assignments($data)'), 'Persistenza rapida privata o applicazione delle assegnazioni nel bot assente');
 check(admin.includes('id="admin-login-gate"') && admin.includes('bootAdminAccess') && admin.includes('api/admin-login.php'), 'Cancello di accesso Admin assente');
 check(adminLogin.includes('password_verify') && adminLogin.includes("TUBETV_ADMIN_PASSWORD_HASH") && !adminLogin.includes("'admin' => 'admin'"), 'Credenziali Admin non verificate lato server o esposte nel codice');

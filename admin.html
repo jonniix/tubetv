@@ -5243,10 +5243,10 @@ async function toggleChannelWebLive(channelId,stationId){
   setChannelLiveSaveStatus('Verifica e salvataggio assegnazione sul server…','info');
   try{
     await persistChannelWebLiveOnline(channelId,requested);
-    channel.webLiveIds=requested;saveAll();renderChannelsTable();
+    channel.webLiveIds=requested;save('channels',DB.channels);renderChannelsTable();
     setChannelLiveSaveStatus('✓ Assegnazione salvata online. Il bot la userà dal prossimo ciclo cron.','ok');
   }catch(error){
-    channel.webLiveIds=before;saveAll();renderChannelsTable();
+    channel.webLiveIds=before;save('channels',DB.channels);renderChannelsTable();
     const detail=String(error.message||error);
     setChannelLiveSaveStatus('Assegnazione NON salvata: '+detail+'. Controlla il token Admin e riprova.','err');
   }finally{
