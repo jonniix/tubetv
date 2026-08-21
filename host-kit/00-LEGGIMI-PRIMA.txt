@@ -1,0 +1,27 @@
+TUBETV HOST - KIT PORTATILE WINDOWS
+===================================
+
+Ordine consigliato:
+
+1. Sul vecchio portatile, prima di reinstallare Windows, esegui come
+   amministratore 01-SALVA-WIFI-E-DRIVER.bat.
+2. Se vuoi reinstallare Windows, usa 02-APRI-RIPRISTINO-WINDOWS.bat e segui
+   la procedura ufficiale mostrata da Windows. Nessuno script cancella il PC.
+3. Dopo la reinstallazione, ricollega questo SSD ed esegui
+   03-RIPRISTINA-WIFI-E-DRIVER.bat come amministratore.
+4. Esegui 04-OTTIMIZZA-PORTATILE-SERVER.bat come amministratore.
+5. Esegui 05-DIAGNOSTICA.bat.
+6. Esegui 06-INSTALLA-TUBETV-HOST.bat quando sarà indicato dalla pagina
+   https://tubetv.online/host/.
+
+SICUREZZA
+---------
+La cartella BACKUP-PRIVATO può contenere le password Wi-Fi in chiaro, perché
+Windows ne ha bisogno per importarle dopo una reinstallazione. Conserva l'SSD
+in un luogo sicuro e cancella quella cartella dopo avere verificato il
+ripristino.
+
+Non è incluso alcun overclock: su un portatile-server aumenterebbe calore,
+instabilità e consumo. Il profilo TubeTV usa invece prestazioni elevate quando
+collegato alla corrente e impedisce la sospensione automatica.
+

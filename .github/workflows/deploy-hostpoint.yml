@@ -42,7 +42,7 @@ jobs:
           node tv-experience-tests.js
           while IFS= read -r -d '' file; do
             php -l "$file" >/dev/null
-          done < <(find api -type f -name '*.php' -print0)
+          done < <(find api host/agent -type f -name '*.php' -print0)
 
       - name: Prepara il collegamento SSH
         shell: bash
@@ -72,6 +72,7 @@ jobs:
             --exclude='/data/' \
             --exclude='/private/' \
             --exclude='/node_modules/' \
+            --exclude='/host-kit/' \
             --exclude='/README.md' \
             --exclude='/package.json' \
             --exclude='/package-lock.json' \
