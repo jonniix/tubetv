@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TubeTV Host</title>
+  <style>
+    :root{color-scheme:dark;--red:#ef233c;--panel:#12151d;--muted:#a8b0bf}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 80% 0,#321019 0,transparent 40%),#080a0f;color:#fff;font-family:Inter,Arial,sans-serif}.wrap{width:min(980px,calc(100% - 32px));margin:auto;padding:52px 0}.brand{font-size:30px;font-weight:950;letter-spacing:-1px}.brand b{color:var(--red)}.hero{margin:34px 0;padding:42px;border:1px solid #ffffff16;border-radius:28px;background:#11151dcc;box-shadow:0 24px 80px #0008}.pill{display:inline-flex;padding:7px 11px;border-radius:999px;background:#ef233c20;color:#ff7182;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.1em}h1{max-width:720px;margin:18px 0 13px;font-size:clamp(34px,6vw,64px);line-height:.98}p{color:var(--muted);font-size:18px;line-height:1.6}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:0 20px;border:0;border-radius:14px;background:var(--red);color:#fff;font-weight:900;text-decoration:none;cursor:pointer}.btn.secondary{background:#242a35}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.step{padding:22px;border:1px solid #ffffff12;border-radius:19px;background:var(--panel)}.step i{display:grid;width:34px;height:34px;place-items:center;border-radius:10px;background:#ef233c25;color:#ff6072;font-style:normal;font-weight:900}.step strong{display:block;margin:15px 0 7px}.step small{color:var(--muted);line-height:1.5}.connect{display:none;margin-top:18px;padding:18px;border-radius:16px;background:#0b271b;border:1px solid #45d48355}.connect.show{display:block}.endpoint{word-break:break-all;color:#7ce4ad}@media(max-width:720px){.hero{padding:28px 22px}.steps{grid-template-columns:1fr}.wrap{padding-top:28px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="brand"><b>TUBE</b>TV <span style="color:#8993a3;font-size:16px">HOST</span></div>
+    <section class="hero">
+      <span class="pill">Server IPTV personale</span>
+      <h1>Sposta l’IPTV sul tuo portatile.</h1>
+      <p>TubeTV e Live Web restano su Hostpoint. Il catalogo IPTV viene recuperato e riprodotto dal tuo TubeTV Host privato attraverso HTTPS Tailscale.</p>
+      <div class="actions">
+        <a class="btn" href="downloads/TubeTV-Host-Setup.bat" download>Scarica TubeTV Host</a>
+        <a class="btn secondary" href="https://tailscale.com/download/windows" target="_blank" rel="noopener">Scarica Tailscale</a>
+      </div>
+      <div class="connect" id="connect"><strong>Portatile rilevato</strong><p class="endpoint" id="endpoint"></p><button class="btn" id="save" type="button">Collega questo dispositivo</button></div>
+    </section>
+    <section class="steps">
+      <article class="step"><i>1</i><strong>Esegui il file</strong><small>Avvialo come amministratore sul portatile destinato al server.</small></article>
+      <article class="step"><i>2</i><strong>Accedi a Tailscale</strong><small>Autorizza il portatile e inserisci i dati IPTV soltanto localmente.</small></article>
+      <article class="step"><i>3</i><strong>Collega i dispositivi</strong><small>Installa Tailscale su PC e telefono, poi usa il link prodotto dall’installer.</small></article>
+    </section>
+  </main>
+  <script>
+  (function(){
+    var params=new URLSearchParams(location.search),endpoint=(params.get('endpoint')||'').trim().replace(/\/+$/,'');
+    if(!/^https:\/\/[a-z0-9.-]+\.ts\.net(?::\d+)?$/i.test(endpoint))return;
+    document.getElementById('connect').classList.add('show');document.getElementById('endpoint').textContent=endpoint;
+    document.getElementById('save').onclick=function(){localStorage.setItem('tutv_iptv_host_url',endpoint);this.textContent='Collegato ✓';setTimeout(function(){location.href='../'},700)};
+  })();
+  </script>
+</body>
+</html>

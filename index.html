@@ -5228,6 +5228,8 @@ function renderKids(){
 // ----------------------------------------------
 function escapeHtml(s){return esc(s||'');}
 function readIptvLocalList(key){try{const value=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(value)?value.map(String):[];}catch(e){return [];}}
+function getConfiguredIptvHost(){try{const value=String(localStorage.getItem('tutv_iptv_host_url')||'').trim().replace(/\/+$/,'');return /^https:\/\/[a-z0-9.-]+\.ts\.net(?::\d+)?$/i.test(value)?value:'';}catch(e){return '';}}
+function getIptvApiBase(){const host=!new URLSearchParams(location.search).has('tvdevice')&&getConfiguredIptvHost();return host?host+'/api/':getBasePath()+'api/';}
 function getIptvDeviceId(){let id='';try{id=localStorage.getItem('tubetv_iptv_device_id')||'';}catch(e){}if(!/^[a-z0-9_-]{24,96}$/.test(id)){const bytes=new Uint8Array(24);crypto.getRandomValues(bytes);id=Array.from(bytes,value=>value.toString(16).padStart(2,'0')).join('');try{localStorage.setItem('tubetv_iptv_device_id',id);}catch(e){}}return id;}
 function getIptvDeviceName(){const platform=navigator.userAgentData?.platform||navigator.platform||'Dispositivo';return `${/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)?'Mobile':'Desktop'} · ${platform}`.slice(0,100);}
 const IPTV_STATE={session:'',channels:[],groups:[],group:'',microGroup:'',query:'',limit:120,hls:null,mpegts:null,selectedId:'',favorites:readIptvLocalList('tubetv_iptv_favorites'),recent:readIptvLocalList('tubetv_iptv_recent'),label:'Catalogo IPTV completo'};
@@ -5289,6 +5291,13 @@ async function openIptvCatalog(){
   if(IPTV_STATE.session&&IPTV_STATE.channels.length){showIptvCatalogView();return;}
   document.getElementById('iptv-pin-view').style.display='block';
   document.getElementById('iptv-catalog-view').style.display='none';
+  if(getConfiguredIptvHost()){
+    IPTV_STATE.label='Catalogo IPTV · TubeTV Host';
+    document.getElementById('iptv-title').textContent=IPTV_STATE.label;
+    setIptvPinStatus('TubeTV Host configurato · inserisci il PIN.');
+    setTimeout(()=>document.getElementById('iptv-pin')?.focus(),50);
+    return;
+  }
   setIptvPinStatus('Verifica disponibilità…');
   try{
     const response=await fetch(getBasePath()+'api/iptv-catalog.php?ts='+Date.now(),{cache:'no-store'});
@@ -5317,10 +5326,22 @@ async function unlockIptvCatalog(){
   if(!/^\d{4,12}$/.test(pin)){setIptvPinStatus('Inserisci un PIN valido.',true);return;}
   setIptvPinStatus('Caricamento playlist privata…');
   try{
-    const response=await fetch(getBasePath()+'api/iptv-catalog.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin,deviceId:getIptvDeviceId(),deviceName:getIptvDeviceName()}),cache:'no-store'});
+    const deviceId=getIptvDeviceId(),deviceName=getIptvDeviceName(),host=getConfiguredIptvHost();
+    let ticket='';
+    if(host){
+      const ticketResponse=await fetch(getBasePath()+'api/iptv-host-ticket.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId,deviceName}),cache:'no-store'});
+      const ticketData=await ticketResponse.json().catch(()=>({}));
+      if(!ticketResponse.ok||ticketData.ok===false){
+        const ticketMessages={ACCOUNT_REQUIRED:'Accedi al tuo account TubeTV prima di usare la playlist.',DEVICE_PENDING:`Dispositivo in attesa di approvazione admin${ticketData.deviceCode?' · codice '+ticketData.deviceCode:''}.`,DEVICE_BLOCKED:'Questo dispositivo è stato bloccato dall’amministratore.',HOST_AUTH_NOT_CONFIGURED:'Collegamento sicuro del server non ancora configurato.'};
+        throw new Error(ticketMessages[ticketData.error]||ticketData.error||('HTTP '+ticketResponse.status));
+      }
+      ticket=String(ticketData.ticket||'');
+      if(!ticket)throw new Error('Autorizzazione del server non ricevuta.');
+    }
+    const response=await fetch(getIptvApiBase()+'iptv-catalog.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin,deviceId,deviceName,ticket}),cache:'no-store'});
     const data=await response.json().catch(()=>({}));
     if(!response.ok||data.ok===false){
-      const messages={PIN_INVALID:'PIN errato.',TOO_MANY_ATTEMPTS:'Troppi tentativi. Riprova tra 10 minuti.',IPTV_DISABLED:'Catalogo IPTV disabilitato.',ACCOUNT_REQUIRED:'Accedi o registrati prima di richiedere l’accesso IPTV.',DEVICE_PENDING:`Dispositivo in attesa di approvazione admin${data.deviceCode?' · codice '+data.deviceCode:''}.`,DEVICE_BLOCKED:'Questo dispositivo è stato bloccato dall’amministratore.',HTTPS_TRANSPORT_UNAVAILABLE:'Il server non può raggiungere la playlist HTTPS.'};
+      const messages={PIN_INVALID:'PIN errato.',TOO_MANY_ATTEMPTS:'Troppi tentativi. Riprova tra 10 minuti.',IPTV_DISABLED:'Catalogo IPTV disabilitato.',ACCOUNT_REQUIRED:'Accedi o registrati prima di richiedere l’accesso IPTV.',DEVICE_PENDING:`Dispositivo in attesa di approvazione admin${data.deviceCode?' · codice '+data.deviceCode:''}.`,DEVICE_BLOCKED:'Questo dispositivo è stato bloccato dall’amministratore.',HOST_TICKET_INVALID:'Autorizzazione scaduta: chiudi e riapri il catalogo.',HTTPS_TRANSPORT_UNAVAILABLE:'Il server non può raggiungere la playlist HTTPS.'};
       throw new Error(messages[data.error]||data.error||('HTTP '+response.status));
     }
     IPTV_STATE.session=String(data.session||'');
@@ -5397,7 +5418,7 @@ function scheduleIptvPreferenceSync(){clearTimeout(_iptvPrefsTimer);_iptvPrefsTi
 async function loadIptvGuide(channel){
   const list=document.getElementById('iptv-guide-list');if(!list)return;
   list.innerHTML='<div class="iptv-guide-note">Caricamento della programmazione…</div>';
-  try{const response=await fetch(getBasePath()+`api/iptv-epg.php?session=${encodeURIComponent(IPTV_STATE.session)}&channel=${encodeURIComponent(channel.id)}&ts=${Date.now()}`,{cache:'no-store'});const data=await response.json().catch(()=>({}));if(!response.ok||data.ok===false)throw new Error(data.error||'EPG_ERROR');const rows=Array.isArray(data.programmes)?data.programmes:[];if(!rows.length){list.innerHTML='<div class="iptv-guide-note">Il provider non offre una guida per questo canale.</div>';return;}list.innerHTML=rows.map(item=>{const start=new Date(item.start),stop=item.stop?new Date(item.stop):null;const time=start.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})+(stop?' – '+stop.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}):'');return `<div class="iptv-guide-row"><span class="iptv-guide-time">${escapeHtml(time)}</span><span><strong>${escapeHtml(item.title||'Programma TV')}</strong>${item.category?`<small style="display:block;color:var(--muted);margin-top:2px">${escapeHtml(item.category)}</small>`:''}</span><span class="iptv-guide-state">${item.isNow?'IN ONDA':'PROSSIMO'}</span></div>`;}).join('');}catch(error){list.innerHTML='<div class="iptv-guide-note">Guida TV momentaneamente non disponibile.</div>';}
+  try{const response=await fetch(getIptvApiBase()+`iptv-epg.php?session=${encodeURIComponent(IPTV_STATE.session)}&channel=${encodeURIComponent(channel.id)}&ts=${Date.now()}`,{cache:'no-store'});const data=await response.json().catch(()=>({}));if(!response.ok||data.ok===false)throw new Error(data.error||'EPG_ERROR');const rows=Array.isArray(data.programmes)?data.programmes:[];if(!rows.length){list.innerHTML='<div class="iptv-guide-note">Il provider non offre una guida per questo canale.</div>';return;}list.innerHTML=rows.map(item=>{const start=new Date(item.start),stop=item.stop?new Date(item.stop):null;const time=start.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})+(stop?' – '+stop.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}):'');return `<div class="iptv-guide-row"><span class="iptv-guide-time">${escapeHtml(time)}</span><span><strong>${escapeHtml(item.title||'Programma TV')}</strong>${item.category?`<small style="display:block;color:var(--muted);margin-top:2px">${escapeHtml(item.category)}</small>`:''}</span><span class="iptv-guide-state">${item.isNow?'IN ONDA':'PROSSIMO'}</span></div>`;}).join('');}catch(error){list.innerHTML='<div class="iptv-guide-note">Guida TV momentaneamente non disponibile.</div>';}
 }
 
 function playIptvChannel(channelId){
@@ -5419,7 +5440,7 @@ function playIptvChannel(channelId){
   renderIptvChannels();
   loadIptvGuide(channel);
   if(status)status.textContent='Avvio player nativo…';
-  const source=getBasePath()+`api/iptv-stream.php?session=${encodeURIComponent(IPTV_STATE.session)}&channel=${encodeURIComponent(channel.id)}`,transcodeSource=getBasePath()+`api/iptv-transcode.php?session=${encodeURIComponent(IPTV_STATE.session)}&channel=${encodeURIComponent(channel.id)}`,format=String(channel.format||'hls').toLowerCase(),isVod=/film|movie|cinema|vod|serie|series/i.test(`${channel.group||''} ${channel.name||''}`);let fallback='native',pictureTimer=0,transcodeTried=false;
+  const source=getIptvApiBase()+`iptv-stream.php?session=${encodeURIComponent(IPTV_STATE.session)}&channel=${encodeURIComponent(channel.id)}`,transcodeSource=getIptvApiBase()+`iptv-transcode.php?session=${encodeURIComponent(IPTV_STATE.session)}&channel=${encodeURIComponent(channel.id)}`,format=String(channel.format||'hls').toLowerCase(),isVod=/film|movie|cinema|vod|serie|series/i.test(`${channel.group||''} ${channel.name||''}`);let fallback='native',pictureTimer=0,transcodeTried=false;
   const play=()=>{const result=video.play();if(result?.catch)result.catch(()=>{if(status)status.textContent='Premi Play per avviare.'})};
   const startTranscode=()=>{if(transcodeTried||!(isVod||format==='transcode'))return false;transcodeTried=true;fallback='transcode';clearTimeout(pictureTimer);try{IPTV_STATE.hls?.destroy?.();IPTV_STATE.hls=null;IPTV_STATE.mpegts?.destroy?.();IPTV_STATE.mpegts=null;video.pause();video.removeAttribute('src');video.load()}catch(e){}if(status)status.textContent='Conversione del film in formato compatibile…';if(empty){empty.style.display='grid';empty.innerHTML='<div><strong>Ottimizzo il film</strong>Conversione automatica H.264 per il browser</div>'}video.src=transcodeSource;video.addEventListener('loadedmetadata',play,{once:true});play();pictureTimer=setTimeout(()=>{if(video.videoWidth<1)showUnsupported()},16000);return true};
   const showUnsupported=()=>{clearTimeout(pictureTimer);if(!transcodeTried&&startTranscode())return;if(status)status.textContent='Codec video non compatibile o conversione non disponibile sul server.';if(empty){empty.style.display='grid';empty.innerHTML='<div><strong>Film non riproducibile</strong>Il server non può convertire questo codec video.</div>'}};

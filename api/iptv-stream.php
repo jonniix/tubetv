@@ -96,6 +96,37 @@ if (!$looksBinary && !$looksLikePlaylist && $channel !== '' && function_exists('
     $looksLikePlaylist = str_starts_with(ltrim($probeBody), '#EXTM3U') || str_contains($probeType, 'mpegurl');
 }
 $channelMeta = $channel !== '' && is_array($session['channelMeta'][$channel] ?? null) ? $session['channelMeta'][$channel] : [];
+$activityPath = '';
+if ($channel !== '') {
+    $activityDir = iptv_private_dir() . DIRECTORY_SEPARATOR . 'iptv-activity';
+    iptv_ensure_private_dir($activityDir);
+    $activityKey = substr(hash('sha256', (string)($_SERVER['REMOTE_ADDR'] ?? '') . '|' . (string)($_SERVER['HTTP_USER_AGENT'] ?? '') . '|' . $channel), 0, 32);
+    $activityPath = $activityDir . DIRECTORY_SEPARATOR . $activityKey . '.json';
+    $previousActivity = json_decode((string)@file_get_contents($activityPath), true);
+    $activity = [
+        'pid' => getmypid(),
+        'ip' => (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+        'userAgent' => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 300),
+        'userId' => (string)($session['userId'] ?? ''),
+        'channelId' => $channel,
+        'channel' => (string)($channelMeta['name'] ?? 'Canale IPTV'),
+        'group' => (string)($channelMeta['group'] ?? 'TV'),
+        'startedAt' => (int)(is_array($previousActivity) ? ($previousActivity['startedAt'] ?? time()) : time()),
+        'lastSeen' => time(),
+        'expiresAt' => time() + 86400,
+    ];
+    @file_put_contents($activityPath . '.tmp', json_encode($activity, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+    @rename($activityPath . '.tmp', $activityPath);
+    @chmod($activityPath, 0600);
+    register_shutdown_function(static function() use ($activityPath, $activity): void {
+        $activity['pid'] = 0;
+        $activity['lastSeen'] = time();
+        $activity['expiresAt'] = time() + 20;
+        @file_put_contents($activityPath . '.tmp', json_encode($activity, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+        @rename($activityPath . '.tmp', $activityPath);
+        @chmod($activityPath, 0600);
+    });
+}
 $metaText = strtolower(trim((string)($channelMeta['group'] ?? '') . ' ' . (string)($channelMeta['name'] ?? '')));
 $isVod = preg_match('/film|movie|cinema|vod|serie|series|24\/7/i', $metaText) === 1
     || preg_match('/\.(mp4|m4v|webm|mkv|avi|flv)$/', $path) === 1;

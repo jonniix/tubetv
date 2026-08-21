@@ -62,7 +62,8 @@ check(streamApi.includes('$isContinuousLive') && streamApi.includes("header_remo
 check(iptvLib.includes("'group' => (string)$item['group']") && iptvLib.includes("'format' => (string)$item['format']"), 'IPTV session does not retain the metadata required to distinguish live channels from VOD');
 check(iptvLib.includes('mp4|m4v|webm|mp3|aac') && iptvLib.includes("return 'transcode'") && iptvLib.includes('mkv|avi|flv'), 'incompatible VOD containers are not routed to conversion');
 check(transcodeApi.includes('proc_open') && transcodeApi.includes('libx264') && transcodeApi.includes('frag_keyframe+empty_moov'), 'browser-compatible H.264 film conversion is incomplete');
-check(index.includes('api/iptv-transcode.php') && mobile.includes('api/iptv-transcode.php') && lite.includes('api/iptv-transcode.php'), 'film conversion fallback is not available on desktop, mobile and TV');
+check(index.includes('iptv-transcode.php') && mobile.includes('iptv-transcode.php') && lite.includes('api/iptv-transcode.php'), 'film conversion fallback is not available on desktop, mobile and TV');
+check(index.includes('getConfiguredIptvHost') && index.includes('getIptvApiBase') && mobile.includes('getConfiguredMobileIptvHost') && mobile.includes('getMobileIptvApiBase'), 'desktop and mobile cannot route IPTV through TubeTV Host');
 check(index.includes('function iptvCategoryValue(channel)') && mobile.includes('function mobileIptvCategoryValue(channel)') && index.includes('return iptvCategoryValue(channel)===rule.value'), 'IPTV macro categories are not exclusive or group-first');
 check(lite.includes('class="brand-name"') && lite.includes('id="clock"') && tv.includes('class="tv-boot"'), 'unified TV visual shell is missing');
 check(tv.includes('data-tv-install') && lite.includes('data-tv-install') && tv.includes('tv-manifest.webmanifest') && lite.includes('tv-pwa.js'), 'Android TV PWA install controls are missing');

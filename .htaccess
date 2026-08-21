@@ -25,4 +25,5 @@
 
   RewriteRule ^tv/?$ tv.html [L,NC]
   RewriteRule ^tv-connect/?$ tv-connect.html [L,NC]
+  RewriteRule ^host/?$ host/index.html [L,NC]
 </IfModule>
