@@ -27,10 +27,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 }
 
 $path = rawurldecode((string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?? '/'));
+$dashboardPaths = ['/dashboard', '/dashboard/', '/api/dashboard-stats.php'];
+$requestHost = strtolower(trim((string)($_SERVER['HTTP_HOST'] ?? '')));
+$dashboardLocal = in_array((string)($_SERVER['REMOTE_ADDR'] ?? ''), ['127.0.0.1', '::1'], true)
+    && preg_match('/^(?:127\.0\.0\.1|localhost|\[::1\])(?::8765)?$/', $requestHost) === 1
+    && trim((string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '')) === '';
+if (in_array($path, $dashboardPaths, true) && !$dashboardLocal) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('DASHBOARD_LOCAL_ONLY');
+}
 $root = __DIR__;
 $routes = [
     '/' => $root . '/health.php',
     '/health' => $root . '/health.php',
+    '/dashboard' => $root . '/dashboard.php',
+    '/dashboard/' => $root . '/dashboard.php',
+    '/api/dashboard-stats.php' => $root . '/dashboard-stats.php',
     '/api/iptv-catalog.php' => $root . '/catalog.php',
     '/api/iptv-stream.php' => $root . '/api/iptv-stream.php',
     '/api/iptv-transcode.php' => $root . '/api/iptv-transcode.php',
@@ -44,4 +57,3 @@ if ($target === '' || !is_file($target)) {
     exit('TUBETV_HOST_ROUTE_NOT_FOUND');
 }
 require $target;
-

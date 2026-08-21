@@ -5326,10 +5326,22 @@ async function unlockIptvCatalog(){
   if(!/^\d{4,12}$/.test(pin)){setIptvPinStatus('Inserisci un PIN valido.',true);return;}
   setIptvPinStatus('Caricamento playlist privata…');
   try{
-    const response=await fetch(getIptvApiBase()+'iptv-catalog.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin,deviceId:getIptvDeviceId(),deviceName:getIptvDeviceName()}),cache:'no-store'});
+    const deviceId=getIptvDeviceId(),deviceName=getIptvDeviceName(),host=getConfiguredIptvHost();
+    let ticket='';
+    if(host){
+      const ticketResponse=await fetch(getBasePath()+'api/iptv-host-ticket.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId,deviceName}),cache:'no-store'});
+      const ticketData=await ticketResponse.json().catch(()=>({}));
+      if(!ticketResponse.ok||ticketData.ok===false){
+        const ticketMessages={ACCOUNT_REQUIRED:'Accedi al tuo account TubeTV prima di usare la playlist.',DEVICE_PENDING:`Dispositivo in attesa di approvazione admin${ticketData.deviceCode?' · codice '+ticketData.deviceCode:''}.`,DEVICE_BLOCKED:'Questo dispositivo è stato bloccato dall’amministratore.',HOST_AUTH_NOT_CONFIGURED:'Collegamento sicuro del server non ancora configurato.'};
+        throw new Error(ticketMessages[ticketData.error]||ticketData.error||('HTTP '+ticketResponse.status));
+      }
+      ticket=String(ticketData.ticket||'');
+      if(!ticket)throw new Error('Autorizzazione del server non ricevuta.');
+    }
+    const response=await fetch(getIptvApiBase()+'iptv-catalog.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin,deviceId,deviceName,ticket}),cache:'no-store'});
     const data=await response.json().catch(()=>({}));
     if(!response.ok||data.ok===false){
-      const messages={PIN_INVALID:'PIN errato.',TOO_MANY_ATTEMPTS:'Troppi tentativi. Riprova tra 10 minuti.',IPTV_DISABLED:'Catalogo IPTV disabilitato.',ACCOUNT_REQUIRED:'Accedi o registrati prima di richiedere l’accesso IPTV.',DEVICE_PENDING:`Dispositivo in attesa di approvazione admin${data.deviceCode?' · codice '+data.deviceCode:''}.`,DEVICE_BLOCKED:'Questo dispositivo è stato bloccato dall’amministratore.',HTTPS_TRANSPORT_UNAVAILABLE:'Il server non può raggiungere la playlist HTTPS.'};
+      const messages={PIN_INVALID:'PIN errato.',TOO_MANY_ATTEMPTS:'Troppi tentativi. Riprova tra 10 minuti.',IPTV_DISABLED:'Catalogo IPTV disabilitato.',ACCOUNT_REQUIRED:'Accedi o registrati prima di richiedere l’accesso IPTV.',DEVICE_PENDING:`Dispositivo in attesa di approvazione admin${data.deviceCode?' · codice '+data.deviceCode:''}.`,DEVICE_BLOCKED:'Questo dispositivo è stato bloccato dall’amministratore.',HOST_TICKET_INVALID:'Autorizzazione scaduta: chiudi e riapri il catalogo.',HTTPS_TRANSPORT_UNAVAILABLE:'Il server non può raggiungere la playlist HTTPS.'};
       throw new Error(messages[data.error]||data.error||('HTTP '+response.status));
     }
     IPTV_STATE.session=String(data.session||'');

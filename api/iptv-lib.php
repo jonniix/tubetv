@@ -17,6 +17,8 @@ function iptv_session_dir(): string { return iptv_private_dir() . DIRECTORY_SEPA
 function iptv_logo_cache_dir(): string { return iptv_private_dir() . DIRECTORY_SEPARATOR . 'iptv-logo-cache'; }
 function iptv_devices_path(): string { $override = getenv('TUBETV_IPTV_DEVICES_PATH'); return is_string($override) && trim($override) !== '' ? trim($override) : iptv_private_dir() . DIRECTORY_SEPARATOR . 'iptv-devices.json'; }
 
+require_once __DIR__ . '/_iptv-host-auth.php';
+
 function iptv_ensure_private_dir(string $dir): void {
     if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
         throw new RuntimeException('PRIVATE_DIRECTORY_NOT_WRITABLE');
@@ -431,7 +433,7 @@ function iptv_pin_rate_check(?bool $success = null): bool {
     return (int)($entry['blockedUntil'] ?? 0) <= $now;
 }
 
-function iptv_create_session(array $channels, string $epgUrl = '', string $userId = '', string $deviceRecordId = ''): array {
+function iptv_create_session(array $channels, string $epgUrl = '', string $userId = '', string $deviceRecordId = '', array $security = []): array {
     $dir = iptv_session_dir(); iptv_ensure_private_dir($dir);
     $token = bin2hex(random_bytes(24));
     $public = []; $private = []; $urlMap = [];
@@ -450,9 +452,44 @@ function iptv_create_session(array $channels, string $epgUrl = '', string $userI
     $meta = [];
     foreach ($public as $item) $meta[(string)$item['id']] = ['name' => (string)$item['name'], 'group' => (string)$item['group'], 'tvgId' => (string)$item['tvgId'], 'format' => (string)$item['format']];
     $session = ['createdAt' => time(), 'expiresAt' => time() + 21600, 'userId' => $userId, 'deviceRecordId' => $deviceRecordId, 'channels' => $private, 'channelMeta' => $meta, 'epgUrl' => iptv_url_allowed($epgUrl) ? $epgUrl : '', 'urlMap' => $urlMap];
+    if (!empty($security['remoteApproval'])) {
+        $session['remoteApproval'] = true;
+        $session['approvalCheckedAt'] = time();
+    }
     $path = $dir . DIRECTORY_SEPARATOR . $token . '.json';
     @file_put_contents($path, json_encode($session, JSON_UNESCAPED_SLASHES), LOCK_EX); @chmod($path, 0600);
     return ['token' => $token, 'channels' => $public, 'expiresAt' => $session['expiresAt']];
+}
+
+function iptv_host_remote_device_approved(string $userId, string $deviceRecordId): bool {
+    if ($userId === '' || !preg_match('/^[a-f0-9]{32}$/', $deviceRecordId) || iptv_host_shared_secret() === '') return false;
+    $now = time();
+    $proof = iptv_host_sign_claims([
+        'v' => 1,
+        'iss' => 'tubetv-host',
+        'aud' => 'device-check',
+        'sub' => $userId,
+        'deviceRecordId' => $deviceRecordId,
+        'iat' => $now,
+        'exp' => $now + 45,
+        'nonce' => bin2hex(random_bytes(8)),
+    ]);
+    if ($proof === '' || !function_exists('curl_init')) return false;
+    $curl = curl_init('https://tubetv.online/api/iptv-host-device-check.php');
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode(['proof' => $proof], JSON_UNESCAPED_SLASHES),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'User-Agent: TubeTV-Host/1.0'],
+        CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_TIMEOUT => 6,
+        CURLOPT_FOLLOWLOCATION => false,
+    ]);
+    $body = curl_exec($curl);
+    $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+    $decoded = is_string($body) ? json_decode($body, true) : null;
+    return $status === 200 && is_array($decoded) && !empty($decoded['ok']) && !empty($decoded['approved']);
 }
 
 function iptv_load_session(string $token): array {
@@ -462,6 +499,16 @@ function iptv_load_session(string $token): array {
     if (!is_array($session) || (int)($session['expiresAt'] ?? 0) < time()) { @unlink($path); return []; }
     $userId = (string)($session['userId'] ?? ''); $deviceRecordId = (string)($session['deviceRecordId'] ?? '');
     if ($userId === '' || $deviceRecordId === '' || !iptv_device_approved($deviceRecordId, $userId)) { @unlink($path); return []; }
+    if (!empty($session['remoteApproval']) && (int)($session['approvalCheckedAt'] ?? 0) < time() - 60) {
+        if (!iptv_host_remote_device_approved($userId, $deviceRecordId)) {
+            iptv_set_device_status($deviceRecordId, 'blocked');
+            @unlink($path);
+            return [];
+        }
+        $session['approvalCheckedAt'] = time();
+        @file_put_contents($path . '.tmp', json_encode($session, JSON_UNESCAPED_SLASHES), LOCK_EX);
+        @rename($path . '.tmp', $path); @chmod($path, 0600);
+    }
     // Sliding lifetime for an actively watched channel. Refresh only near the
     // midpoint to avoid writing the session file for every HLS segment.
     if ((int)$session['expiresAt'] < time() + 10800) {
