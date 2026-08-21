@@ -34,7 +34,13 @@
     <p class="lead">Fix automatico per il server Debian 13: rimuove la richiesta del vecchio DVD, installa il firmware Realtek e prepara SSH.</p>
     <p class="notice"><strong>Prima di iniziare:</strong> lascia collegati l’SSD Seagate e l’iPhone con hotspot USB. Il computer si riavvierà automaticamente.</p>
 
-    <div class="step">1 · Copia questo comando</div>
+    <div class="step">Metodo facile · Nessun comando</div>
+    <div class="actions" style="grid-template-columns:1fr">
+      <a class="button" style="background:#ed1c24;border-color:#ed1c24" href="TubeTV-WiFi-Fix.tar.gz" download>Scarica fix automatico</a>
+    </div>
+    <p class="lead" style="margin-top:14px">Apri il file scaricato, premi <strong>Estrai</strong>, entra nella cartella <strong>TubeTV-WiFi-Fix</strong> e fai doppio clic su <strong>INSTALLA-WIFI</strong>. Se richiesto, scegli <strong>Esegui</strong>.</p>
+
+    <div class="step">Metodo alternativo · Terminale</div>
     <code id="command">curl -fsSLo /tmp/tubetv-wifi-fix.sh https://tubetv.online/fix1/wifi.sh &amp;&amp; sudo sh /tmp/tubetv-wifi-fix.sh</code>
     <div class="actions">
       <button id="copy" type="button">Copia comando</button>
@@ -42,7 +48,7 @@
     </div>
     <p class="done" id="status" aria-live="polite"></p>
 
-    <div class="step">2 · Incolla nel Terminale</div>
+    <div class="step">Incolla nel Terminale</div>
     <p class="lead">Apri il Terminale, premi <strong>Ctrl + Shift + V</strong> e poi Invio. Attendi la scritta “Fix completato”.</p>
     <p class="foot">Lo script usa esclusivamente i repository ufficiali Debian e conserva una copia della configurazione precedente.</p>
   </main>
