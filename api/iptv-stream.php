@@ -342,6 +342,9 @@ if ($looksLikePlaylist) {
             $lastSafeUri = $mediaUris[count($mediaUris) - 1 - $holdBack];
             $lines = array_slice($lines, 0, $lastSafeUri + 1);
         }
+        if (preg_match('/dazn/i', $metaText) === 1 && !str_contains((string)$body, '#EXT-X-START:')) {
+            array_splice($lines, 1, 0, ['#EXT-X-START:TIME-OFFSET=-25.0,PRECISE=NO']);
+        }
         // Never delay the playlist while downloading media. The previous
         // synchronous prefetch could hold this response for 20+ seconds and
         // compete with the segment the player actually needed. On-demand
