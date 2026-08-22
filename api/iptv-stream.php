@@ -39,6 +39,15 @@ function iptv_prune_segment_cache(string $cacheDir, int $maxBytes = 201326592): 
     $lock = @fopen($cacheDir . DIRECTORY_SEPARATOR . '.prune.lock', 'c');
     if (!$lock || !@flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) @fclose($lock); return; }
     $files = []; $total = 0; $now = time();
+    // Interrupted viewers can leave partial downloads behind. On a tmpfs
+    // cache these files consume real RAM and eventually prevent every new
+    // segment from being finalized, so remove only pieces older than the
+    // longest segment request timeout.
+    foreach (['*.tmp', '*.warm'] as $pattern) {
+        foreach (glob($cacheDir . DIRECTORY_SEPARATOR . $pattern) ?: [] as $path) {
+            if ((int)@filemtime($path) < $now - 45) @unlink($path);
+        }
+    }
     foreach (glob($cacheDir . DIRECTORY_SEPARATOR . '*.bin') ?: [] as $path) {
         $mtime = (int)@filemtime($path); $size = max(0, (int)@filesize($path));
         if ($mtime < $now - 300) { @unlink($path); @unlink(substr($path, 0, -4) . '.json'); continue; }
@@ -161,6 +170,8 @@ if (($_GET['asset'] ?? '') === 'logo') {
 }
 
 $path = strtolower((string)(parse_url($url, PHP_URL_PATH) ?? ''));
+$resourceHint = strtolower(trim((string)($_GET['resource'] ?? '')));
+if (!in_array($resourceHint, ['manifest', 'segment'], true)) $resourceHint = '';
 $channelMeta = $channel !== '' && is_array($session['channelMeta'][$channel] ?? null) ? $session['channelMeta'][$channel] : [];
 $takeoverMeta = $channelMeta;
 if (!$takeoverMeta && count((array)($session['channels'] ?? [])) === 1) {
@@ -188,14 +199,14 @@ foreach ($binaryExtensions as $extension) {
 // Some providers expose MPEG-TS and HLS through extensionless URLs. Probe a
 // small prefix instead of assuming that every top-level channel is HLS.
 $urlLower = strtolower($url);
-$looksLikePlaylist = !$looksBinary && (
+$looksLikePlaylist = $resourceHint !== 'segment' && ($resourceHint === 'manifest' || (!$looksBinary && (
     $declaredFormat === 'hls'
     ||
     str_ends_with($path, '.m3u8')
     || str_contains($urlLower, 'output=m3u8')
     || str_contains($urlLower, 'format=m3u8')
     || str_contains($urlLower, 'type=hls')
-);
+)));
 if (!$looksBinary && !$looksLikePlaylist && $channel !== '' && function_exists('curl_init')) {
     $probeBody = '';
     $probeType = '';
@@ -267,10 +278,14 @@ $isContinuousLive = $channel !== '' && !$isVod && !$looksLikePlaylist;
 // duration and both players start buffering. Cache immutable HLS media pieces
 // by their upstream URL and serialize only identical in-flight downloads.
 $isHlsMediaSegment = $channel === '' && $key !== '' && !$looksLikePlaylist
-    && preg_match('/\.(?:ts|m4s|mp4|aac)(?:$|\?)/i', $url) === 1;
+    && ($resourceHint === 'segment' || preg_match('/\.(?:ts|m4s|mp4|aac)(?:$|\?)/i', $url) === 1);
 if ($isHlsMediaSegment && function_exists('curl_init')) {
     $cacheDir = iptv_segment_cache_dir();
     iptv_ensure_private_dir($cacheDir);
+    $freeBytes = @disk_free_space($cacheDir);
+    if (($freeBytes !== false && $freeBytes < 134217728) || random_int(1, 20) === 1) {
+        iptv_prune_segment_cache($cacheDir);
+    }
     $cacheId = hash('sha256', $url);
     $bodyPath = $cacheDir . DIRECTORY_SEPARATOR . $cacheId . '.bin';
     $metaPath = $cacheDir . DIRECTORY_SEPARATOR . $cacheId . '.json';
@@ -351,10 +366,6 @@ if ($looksLikePlaylist) {
         exit('IPTV_STREAM_IS_NOT_HLS');
     }
     $baseUrl = iptv_url_allowed((string)($fetch['effectiveUrl'] ?? '')) ? (string)$fetch['effectiveUrl'] : $url;
-    $body = preg_replace_callback('/URI="([^"]+)"/', function($m) use ($baseUrl, $token, &$session) {
-        $absolute = iptv_resolve_url($baseUrl, $m[1]);
-        return 'URI="' . iptv_map_url($token, $session, $absolute) . '"';
-    }, $body);
     $lines = preg_split('/\r\n|\r|\n/', (string)$body) ?: [];
     // Some IPTV origins advertise their newest 10-second segment before it is
     // completely available. Playing at that edge leaves zero download margin
@@ -380,10 +391,21 @@ if ($looksLikePlaylist) {
         // compete with the segment the player actually needed. On-demand
         // segment caching below still deduplicates concurrent viewers.
     }
+    $previousTag = '';
     foreach ($lines as &$line) {
         $trim = trim($line);
-        if ($trim !== '' && $trim[0] !== '#') {
-            $line = iptv_map_url($token, $session, iptv_resolve_url($baseUrl, $trim));
+        if ($trim === '') continue;
+        if ($trim[0] === '#') {
+            $attributeKind = preg_match('/^#EXT-X-(?:MEDIA|I-FRAME-STREAM-INF):/i', $trim) === 1 ? 'manifest' : 'segment';
+            $line = preg_replace_callback('/URI="([^"]+)"/', function($match) use ($baseUrl, $token, &$session, $attributeKind) {
+                $absolute = iptv_resolve_url($baseUrl, $match[1]);
+                return 'URI="' . iptv_map_url($token, $session, $absolute) . '&resource=' . $attributeKind . '"';
+            }, $line);
+            $previousTag = $trim;
+        } else {
+            $resourceKind = str_starts_with(strtoupper($previousTag), '#EXT-X-STREAM-INF:') ? 'manifest' : 'segment';
+            $line = iptv_map_url($token, $session, iptv_resolve_url($baseUrl, $trim)) . '&resource=' . $resourceKind;
+            $previousTag = '';
         }
     }
     unset($line);
