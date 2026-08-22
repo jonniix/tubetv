@@ -140,7 +140,7 @@ if (!$takeoverMeta && count((array)($session['channels'] ?? [])) === 1) {
 }
 $takeoverText = strtolower(trim((string)($takeoverMeta['group'] ?? '') . ' ' . (string)($takeoverMeta['name'] ?? '')));
 $takeoverVod = !empty($takeoverMeta['isVod']) || preg_match('/film|movie|cinema|vod|serie|series|24\/7/i', $takeoverText) === 1;
-$takeoverHeavy = !$takeoverVod && preg_match('/dazn|4k|super\s*hd|uhd/i', $takeoverText) === 1;
+$takeoverHeavy = !$takeoverVod && preg_match('/dazn/i', $takeoverText) !== 1 && preg_match('/4k|super\s*hd|uhd/i', $takeoverText) === 1;
 $takeoverState = json_decode((string)@file_get_contents(iptv_private_dir() . DIRECTORY_SEPARATOR . 'adaptive-takeover.json'), true);
 $takeoverActive = is_array($takeoverState) && (int)($takeoverState['activeUntil'] ?? 0) >= time();
 $takeoverDraining = $takeoverActive && in_array((string)($takeoverState['phase'] ?? ''), ['draining', 'starting', 'retrying'], true);

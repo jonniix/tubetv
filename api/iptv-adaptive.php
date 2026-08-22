@@ -60,6 +60,9 @@ function adaptive_worker_call(string $workerUrl, string $secret, string $method,
 // reachable. This keeps ordinary playback available when the fixed PC is off.
 $health = adaptive_worker_call($workerUrl, $workerSecret, 'GET', '/health', '', 4);
 if (empty($health['ok'])) $fallback();
+$pending = static function(string $message = 'IPTV_ADAPTIVE_PREPARING'): never {
+    http_response_code(503); header('Retry-After: 3'); header('Cache-Control: no-store'); exit($message);
+};
 
 $job = is_array($session['adaptiveJobs'][$channelId] ?? null) ? $session['adaptiveJobs'][$channelId] : [];
 $jobId = preg_match('/^[a-f0-9]{32}$/', (string)($job['id'] ?? '')) ? (string)$job['id'] : '';
@@ -67,7 +70,7 @@ if ($asset === 'master.m3u8' || $jobId === '') {
     // Several browsers can request the same master simultaneously. Only one
     // request may drain the origin and start NVENC; followers reuse its job.
     $coordinator = @fopen(iptv_private_dir() . DIRECTORY_SEPARATOR . 'adaptive-coordinator.lock', 'c');
-    if (!$coordinator || !@flock($coordinator, LOCK_EX)) $fallback();
+    if (!$coordinator || !@flock($coordinator, LOCK_EX | LOCK_NB)) $pending();
     $freshSession = iptv_load_session($token);
     $freshJob = is_array($freshSession['adaptiveJobs'][$channelId] ?? null) ? $freshSession['adaptiveJobs'][$channelId] : [];
     $freshJobId = preg_match('/^[a-f0-9]{32}$/', (string)($freshJob['id'] ?? '')) ? (string)$freshJob['id'] : '';
@@ -78,31 +81,40 @@ if ($asset === 'master.m3u8' || $jobId === '') {
     // The provider permits very few simultaneous connections. Announce the
     // takeover first so old direct playlists/segments stop opening new ones.
     $writeTakeover('draining');
-    usleep(12000000);
+    usleep(8000000);
     $body = json_encode(['url' => $sourceUrl, 'viewer' => $viewer], JSON_UNESCAPED_SLASHES);
-    for ($attempt = 0; is_string($body) && $attempt < 3 && $jobId === ''; $attempt++) {
-        $writeTakeover($attempt === 0 ? 'starting' : 'retrying');
-        $started = adaptive_worker_call($workerUrl, $workerSecret, 'POST', '/hls/start', $body, 50);
-        $data = !empty($started['ok']) ? json_decode((string)$started['body'], true) : null;
-        $jobId = is_array($data) && preg_match('/^[a-f0-9]{32}$/', (string)($data['id'] ?? '')) ? (string)$data['id'] : '';
-        if ($jobId === '' && $attempt < 2) usleep(3000000);
-    }
-    if ($jobId === '') $fallback();
+    $writeTakeover('starting');
+    $started = is_string($body) ? adaptive_worker_call($workerUrl, $workerSecret, 'POST', '/hls/start', $body, 10) : ['ok' => false];
+    $data = !empty($started['ok']) ? json_decode((string)$started['body'], true) : null;
+    $jobId = is_array($data) && preg_match('/^[a-f0-9]{32}$/', (string)($data['id'] ?? '')) ? (string)$data['id'] : '';
+    if ($jobId === '') { @flock($coordinator, LOCK_UN); @fclose($coordinator); $fallback(); }
     $session['adaptiveJobs'][$channelId] = ['id' => $jobId, 'updatedAt' => time(), 'mode' => 'desktop-nvenc'];
     iptv_save_session($token, $session);
+        $writeTakeover(!empty($data['ready']) ? 'ready' : 'starting', $jobId);
         @flock($coordinator, LOCK_UN); @fclose($coordinator);
     }
 }
-$writeTakeover('ready', $jobId);
 
 $workerPath = '/hls/' . $jobId . '/' . $asset . '?viewer=' . rawurlencode($viewer);
 $result = adaptive_worker_call($workerUrl, $workerSecret, 'GET', $workerPath, '', str_ends_with($asset, '.m3u8') ? 8 : 25);
 if (!$result['ok']) {
+    $workerError = json_decode((string)($result['body'] ?? ''), true);
+    $workerCode = is_array($workerError) ? (string)($workerError['error'] ?? '') : '';
+    if ($workerCode === 'HLS_ASSET_PENDING') {
+        $jobStartedAt = (int)($session['adaptiveJobs'][$channelId]['updatedAt'] ?? time());
+        if (time() - $jobStartedAt > 15) {
+            $stopBody = json_encode(['id' => $jobId, 'viewer' => $viewer], JSON_UNESCAPED_SLASHES);
+            if (is_string($stopBody)) adaptive_worker_call($workerUrl, $workerSecret, 'POST', '/hls/stop', $stopBody, 4);
+            unset($session['adaptiveJobs'][$channelId]); iptv_save_session($token, $session); $fallback();
+        }
+        $writeTakeover('starting', $jobId); $pending();
+    }
     if ($asset === 'master.m3u8') {
-        unset($session['adaptiveJobs'][$channelId]); iptv_save_session($token, $session); $fallback();
+        unset($session['adaptiveJobs'][$channelId]); iptv_save_session($token, $session); $clearTakeover(); $pending('IPTV_ADAPTIVE_RESTARTING');
     }
     http_response_code((int)($result['status'] ?? 0) === 404 ? 404 : 502); exit('IPTV_ADAPTIVE_ASSET_UNAVAILABLE');
 }
+$writeTakeover('ready', $jobId);
 
 $content = (string)$result['body'];
 if (str_ends_with($asset, '.m3u8')) {
