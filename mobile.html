@@ -2929,7 +2929,7 @@ function reportMobilePlayerDiagnostic(event,data={}){if(_mobilePlayerDiagnosticC
 const playIptvChannelLegacyMobile=playIptvChannel;
 playIptvChannel=function(id){
   const channel=IPTV_STATE.channels.find(item=>String(item.id)===String(id));if(!channel)return;
-  const format=String(channel.format||'hls').toLowerCase(),isVod=!!channel.isVod||format==='native'||format==='transcode'||/film|movie|cinema|vod|serie|series|documentar/i.test(`${channel.group||''} ${channel.name||''}`);
+  const format=String(channel.format||'hls').toLowerCase(),isVod=mobileIptvContentType(channel)!=='live';
   if(isVod){playIptvChannelLegacyMobile(id);return}
   closeIptvPlayer();
   const video=document.getElementById('iptv-video'),status=document.getElementById('iptv-player-status'),empty=document.getElementById('iptv-empty-player');
