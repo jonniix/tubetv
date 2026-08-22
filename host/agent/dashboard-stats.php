@@ -220,6 +220,23 @@ foreach ($workerPids as $index => $pid) {
     $workerDetails[] = ['number' => $index + 1, 'pid' => $pid, 'busy' => $busy, 'task' => $task, 'durationMs' => $busy && $startedAt > 0 ? (int)round((microtime(true) - $startedAt) * 1000) : (int)($activity['durationMs'] ?? 0), 'memoryMb' => round($rssKb / 1024, 1), 'updatedAt' => (float)($activity['updatedAt'] ?? 0)];
 }
 $runtime = ['workers' => count($workerPids), 'processes' => $phpProcesses, 'busyWorkers' => $busyWorkers, 'mediaWorkers' => $mediaWorkers, 'idleWorkers' => max(0, count($workerPids) - $busyWorkers), 'workerDetails' => $workerDetails, 'activeStreams' => count(array_filter($viewers, static fn(array $v): bool => $v['live']))];
+$prefetch = json_decode((string)@file_get_contents(__DIR__ . '/private/iptv-prefetch-state.json'), true);
+if (!is_array($prefetch)) $prefetch = [];
+$prefetchUpdatedAt = (float)($prefetch['updatedAt'] ?? 0);
+$prefetch = [
+    'online' => $prefetchUpdatedAt > microtime(true) - 5,
+    'updatedAt' => $prefetchUpdatedAt,
+    'activeChannels' => max(0, (int)($prefetch['activeChannels'] ?? 0)),
+    'queueDepth' => max(0, (int)($prefetch['queueDepth'] ?? 0)),
+    'readySegments' => max(0, (int)($prefetch['readySegments'] ?? 0)),
+    'readySeconds' => max(0, round((float)($prefetch['readySeconds'] ?? 0), 1)),
+    'downloadedCycle' => max(0, (int)($prefetch['downloadedCycle'] ?? 0)),
+    'downloadsTotal' => max(0, (int)($prefetch['downloadsTotal'] ?? 0)),
+    'failuresTotal' => max(0, (int)($prefetch['failuresTotal'] ?? 0)),
+    'bytesTotal' => max(0, (int)($prefetch['bytesTotal'] ?? 0)),
+    'cacheBytes' => max(0, (int)($prefetch['cacheBytes'] ?? 0)),
+    'lastDownloadMs' => max(0, (int)($prefetch['lastDownloadMs'] ?? 0)),
+];
 $desktopAssist = dash_desktop_assist();
 foreach ($viewers as &$viewer) {
     $requested = in_array((string)($viewer['deliveryMode'] ?? ''), ['adaptive-requested', 'desktop-adaptive'], true);
@@ -227,4 +244,4 @@ foreach ($viewers as &$viewer) {
 }
 unset($viewer);
 
-echo json_encode(['ok' => true, 'time' => gmdate('c'), 'server' => ['hostname' => gethostname() ?: 'tubetv-host', 'uptime' => (int)(float)trim((string)@file_get_contents('/proc/uptime')), 'load' => array_map(static fn($v): float => round((float)$v, 2), sys_getloadavg() ?: [0,0,0]), 'cpuPercent' => $cpuPercent, 'memoryUsed' => $memoryUsed, 'memoryTotal' => $memoryTotal, 'diskUsed' => max(0, $diskTotal - $diskFree), 'diskTotal' => $diskTotal, 'temperature' => dash_temperature(), 'pingMs' => dash_ping()], 'network' => ['downloadBps' => round($rxRate), 'uploadBps' => round($txRate), 'received' => $network['rx'], 'sent' => $network['tx']], 'streaming' => ['activeViewers' => count(array_filter($viewers, static fn(array $v): bool => $v['live'])), 'sessions' => $sessions, 'viewers' => array_slice($viewers, 0, 12)], 'requests' => $requestMetrics, 'catalog' => $catalog, 'runtime' => $runtime, 'desktopAssist' => $desktopAssist], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok' => true, 'time' => gmdate('c'), 'server' => ['hostname' => gethostname() ?: 'tubetv-host', 'uptime' => (int)(float)trim((string)@file_get_contents('/proc/uptime')), 'load' => array_map(static fn($v): float => round((float)$v, 2), sys_getloadavg() ?: [0,0,0]), 'cpuPercent' => $cpuPercent, 'memoryUsed' => $memoryUsed, 'memoryTotal' => $memoryTotal, 'diskUsed' => max(0, $diskTotal - $diskFree), 'diskTotal' => $diskTotal, 'temperature' => dash_temperature(), 'pingMs' => dash_ping()], 'network' => ['downloadBps' => round($rxRate), 'uploadBps' => round($txRate), 'received' => $network['rx'], 'sent' => $network['tx']], 'streaming' => ['activeViewers' => count(array_filter($viewers, static fn(array $v): bool => $v['live'])), 'sessions' => $sessions, 'viewers' => array_slice($viewers, 0, 12)], 'requests' => $requestMetrics, 'catalog' => $catalog, 'runtime' => $runtime, 'prefetch' => $prefetch, 'desktopAssist' => $desktopAssist], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
