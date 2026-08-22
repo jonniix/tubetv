@@ -11,8 +11,8 @@ function iptv_fetch_shared_hls_playlist(string $url): array {
     iptv_ensure_private_dir($cacheDir);
     $id = hash('sha256', $url); $bodyPath = $cacheDir . DIRECTORY_SEPARATOR . $id . '.m3u8';
     $metaPath = $cacheDir . DIRECTORY_SEPARATOR . $id . '.json'; $lockPath = $cacheDir . DIRECTORY_SEPARATOR . $id . '.lock';
-    $read = static function() use ($bodyPath, $metaPath): array {
-        if (!is_file($bodyPath) || (int)@filemtime($bodyPath) < time() - 3) return [];
+    $read = static function(int $maxAge = 3) use ($bodyPath, $metaPath): array {
+        if (!is_file($bodyPath) || (int)@filemtime($bodyPath) < time() - max(1, $maxAge)) return [];
         $body = (string)@file_get_contents($bodyPath); $meta = json_decode((string)@file_get_contents($metaPath), true);
         if (!str_starts_with(ltrim($body), '#EXTM3U')) return [];
         return ['ok' => true, 'body' => $body, 'effectiveUrl' => is_array($meta) ? (string)($meta['effectiveUrl'] ?? '') : '', 'error' => '', 'sharedCache' => true];
@@ -22,12 +22,38 @@ function iptv_fetch_shared_hls_playlist(string $url): array {
     if ($lock && @flock($lock, LOCK_EX)) {
         $cached = $read();
         if (!$cached) {
+            // Only one upstream manifest request may start at a time across
+            // all channels. With several viewers this turns simultaneous
+            // polling bursts into a short round-robin rotation.
+            $schedulerLock = @fopen($cacheDir . DIRECTORY_SEPARATOR . '.manifest-scheduler.lock', 'c');
+            $schedulerState = $cacheDir . DIRECTORY_SEPARATOR . '.manifest-scheduler.json';
+            if ($schedulerLock && @flock($schedulerLock, LOCK_EX)) {
+                $last = json_decode((string)@file_get_contents($schedulerState), true);
+                $elapsed = microtime(true) - (float)(is_array($last) ? ($last['lastAt'] ?? 0) : 0);
+                if ($elapsed < .35) usleep((int)((.35 - $elapsed) * 1000000));
+            }
             $fresh = iptv_fetch_hls_playlist($url, 10485760);
+            if ($schedulerLock) {
+                @file_put_contents($schedulerState . '.tmp', json_encode(['lastAt' => microtime(true)]), LOCK_EX);
+                @rename($schedulerState . '.tmp', $schedulerState);
+                @flock($schedulerLock, LOCK_UN); @fclose($schedulerLock);
+            }
             if (!empty($fresh['ok']) && str_starts_with(ltrim((string)($fresh['body'] ?? '')), '#EXTM3U')) {
                 @file_put_contents($bodyPath . '.tmp', (string)$fresh['body'], LOCK_EX); @rename($bodyPath . '.tmp', $bodyPath);
                 @file_put_contents($metaPath, json_encode(['effectiveUrl' => (string)($fresh['effectiveUrl'] ?? '')], JSON_UNESCAPED_SLASHES), LOCK_EX);
                 @chmod($bodyPath, 0600); @chmod($metaPath, 0600); $cached = $fresh; $cached['sharedCache'] = false;
-            } else $cached = $fresh;
+            } else {
+                // Live origins occasionally reject one manifest refresh while
+                // the stream itself remains healthy. Reusing the last valid
+                // window briefly prevents a transient provider error from
+                // turning every connected player black at the same instant.
+                $stale = $read(45);
+                if ($stale) {
+                    $stale['sharedCache'] = true;
+                    $stale['staleFallback'] = true;
+                    $cached = $stale;
+                } else $cached = $fresh;
+            }
         }
         @flock($lock, LOCK_UN); @fclose($lock);
         return is_array($cached) ? $cached : ['ok' => false, 'error' => 'IPTV_PLAYLIST_CACHE_FAILED'];
@@ -60,32 +86,119 @@ function iptv_prune_segment_cache(string $cacheDir, int $maxBytes = 2147483648):
     @flock($lock, LOCK_UN); @fclose($lock);
 }
 
-function iptv_queue_live_prefetch(string $manifestUrl, array $entries, array $meta = []): void {
-    if (!$entries) return;
+function iptv_queue_live_prefetch(string $manifestUrl, array $entries, array $meta = [], int $viewerCount = 1, int $targetDelay = 0): array {
+    if (!$entries) return [];
     $queueDir = iptv_private_dir() . DIRECTORY_SEPARATOR . 'iptv-prefetch-queue';
     iptv_ensure_private_dir($queueDir);
     $channelKey = hash('sha256', $manifestUrl);
     $clean = [];
-    foreach (array_slice($entries, 0, 6) as $entry) {
+    foreach ($entries as $entry) {
         $entryUrl = trim((string)($entry['url'] ?? ''));
         if ($entryUrl === '' || !iptv_url_allowed($entryUrl)) continue;
-        $clean[] = ['url' => $entryUrl, 'duration' => max(1.0, min(30.0, (float)($entry['duration'] ?? 10.0)))];
+        $clean[] = [
+            'url' => $entryUrl,
+            'duration' => max(1.0, min(30.0, (float)($entry['duration'] ?? 10.0))),
+            'sequence' => max(0, (int)($entry['sequence'] ?? 0)),
+            'discontinuity' => !empty($entry['discontinuity']),
+            'protected' => !empty($entry['protected']),
+            'seenAt' => microtime(true),
+        ];
     }
-    if (!$clean) return;
+    if (!$clean) return [];
+    $path = $queueDir . DIRECTORY_SEPARATOR . $channelKey . '.json';
+    $lock = @fopen($path . '.lock', 'c');
+    if ($lock) @flock($lock, LOCK_EX);
+    $previous = json_decode((string)@file_get_contents($path), true);
+    $merged = [];
+    foreach (array_merge(is_array($previous['entries'] ?? null) ? $previous['entries'] : [], $clean) as $entry) {
+        if (!is_array($entry) || !iptv_url_allowed((string)($entry['url'] ?? ''))) continue;
+        $identity = (int)($entry['sequence'] ?? 0) > 0 ? 's:' . (int)$entry['sequence'] : 'u:' . hash('sha256', (string)$entry['url']);
+        $merged[$identity] = $entry;
+    }
+    $merged = array_values($merged);
+    usort($merged, static function(array $a, array $b): int {
+        $aSequence = (int)($a['sequence'] ?? 0); $bSequence = (int)($b['sequence'] ?? 0);
+        if ($aSequence > 0 && $bSequence > 0) return $aSequence <=> $bSequence;
+        return ((float)($a['seenAt'] ?? 0)) <=> ((float)($b['seenAt'] ?? 0));
+    });
+    $merged = array_slice($merged, -36);
     $payload = [
-        'version' => 1,
+        'version' => 2,
         'channelKey' => $channelKey,
         'channel' => substr((string)($meta['name'] ?? 'Canale live'), 0, 160),
         'group' => substr((string)($meta['group'] ?? 'TV'), 0, 160),
         'updatedAt' => microtime(true),
-        'entries' => $clean,
+        'viewerCount' => max(1, min(12, $viewerCount)),
+        'targetDelaySeconds' => max(0, min(180, $targetDelay)),
+        'entries' => $merged,
     ];
-    $path = $queueDir . DIRECTORY_SEPARATOR . $channelKey . '.json';
     $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    if (!is_string($encoded)) return;
+    if (!is_string($encoded)) { if ($lock) { @flock($lock, LOCK_UN); @fclose($lock); } return []; }
     @file_put_contents($path . '.tmp', $encoded, LOCK_EX);
     @rename($path . '.tmp', $path);
     @chmod($path, 0600);
+    if ($lock) { @flock($lock, LOCK_UN); @fclose($lock); }
+    return $payload;
+}
+
+function iptv_active_live_viewers(): int {
+    $now = time(); $clients = [];
+    $activityDir = iptv_private_dir() . DIRECTORY_SEPARATOR . 'iptv-activity';
+    foreach (glob($activityDir . DIRECTORY_SEPARATOR . '*.json') ?: [] as $path) {
+        $item = json_decode((string)@file_get_contents($path), true);
+        if (!is_array($item) || (int)($item['lastSeen'] ?? 0) < $now - 35) continue;
+        $client = trim((string)($item['clientId'] ?? ''));
+        if ($client !== '') $clients[$client] = true;
+    }
+    return max(1, count($clients));
+}
+
+function iptv_build_buffered_playlist(array $queue, int $targetDelay, string $token, array &$session): array {
+    if ($targetDelay < 10 || !is_array($queue['entries'] ?? null)) return [];
+    $cacheDir = iptv_segment_cache_dir(); $entries = [];
+    foreach ($queue['entries'] as $entry) {
+        if (!is_array($entry) || !empty($entry['protected'])) return [];
+        $url = trim((string)($entry['url'] ?? ''));
+        if ($url === '' || !iptv_url_allowed($url)) continue;
+        $bodyPath = $cacheDir . DIRECTORY_SEPARATOR . hash('sha256', $url) . '.bin';
+        $entry['cached'] = is_file($bodyPath) && (int)@filesize($bodyPath) > 100000 && (int)@filemtime($bodyPath) >= time() - 360;
+        $entries[] = $entry;
+    }
+    if (count($entries) < 4) return [];
+    usort($entries, static fn(array $a, array $b): int => ((int)($a['sequence'] ?? 0)) <=> ((int)($b['sequence'] ?? 0)));
+    $cutoff = count($entries) - 1; $behind = 0.0;
+    while ($cutoff >= 0 && $behind < $targetDelay) {
+        $behind += max(1.0, (float)($entries[$cutoff]['duration'] ?? 10.0)); $cutoff--;
+    }
+    if ($cutoff < 2) return [];
+    $end = $cutoff;
+    while ($end >= 2) {
+        $start = max(0, $end - 5); $candidate = array_slice($entries, $start, $end - $start + 1);
+        $contiguous = count($candidate) >= 3;
+        foreach ($candidate as $position => $entry) {
+            if (empty($entry['cached'])) { $contiguous = false; break; }
+            if ($position > 0) {
+                $previousSequence = (int)($candidate[$position - 1]['sequence'] ?? 0);
+                $sequence = (int)($entry['sequence'] ?? 0);
+                if ($previousSequence > 0 && $sequence > 0 && $sequence !== $previousSequence + 1) { $contiguous = false; break; }
+            }
+        }
+        if ($contiguous) break;
+        $end--;
+    }
+    if ($end < 2 || empty($candidate) || count($candidate) < 3) return [];
+    $actualDelay = 0.0;
+    for ($index = $end + 1; $index < count($entries); $index++) $actualDelay += max(1.0, (float)($entries[$index]['duration'] ?? 10.0));
+    $targetDuration = 1;
+    foreach ($candidate as $entry) $targetDuration = max($targetDuration, (int)ceil((float)($entry['duration'] ?? 10.0)));
+    $firstSequence = max(0, (int)($candidate[0]['sequence'] ?? 0));
+    $lines = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-TARGETDURATION:' . $targetDuration, '#EXT-X-MEDIA-SEQUENCE:' . $firstSequence, '#EXT-X-START:TIME-OFFSET=-8.0,PRECISE=NO'];
+    foreach ($candidate as $entry) {
+        if (!empty($entry['discontinuity'])) $lines[] = '#EXT-X-DISCONTINUITY';
+        $lines[] = '#EXTINF:' . rtrim(rtrim(number_format((float)($entry['duration'] ?? 10.0), 3, '.', ''), '0'), '.') . ',';
+        $lines[] = (string)$entry['url'];
+    }
+    return ['lines' => $lines, 'actualDelay' => (int)round($actualDelay), 'segments' => count($candidate)];
 }
 
 function iptv_warm_hls_segments(array $urls): void {
@@ -397,17 +510,28 @@ if ($looksLikePlaylist) {
     $lines = preg_split('/\r\n|\r|\n/', (string)$body) ?: [];
     $sourceMedia = [];
     $pendingDuration = 10.0;
+    $mediaSequence = 0; $nextSequence = 0; $pendingDiscontinuity = false; $protectedPlaylist = false;
+    foreach ($lines as $sourceLine) if (preg_match('/^#EXT-X-MEDIA-SEQUENCE:(\d+)/i', trim($sourceLine), $sequenceMatch)) {
+        $mediaSequence = max(0, (int)$sequenceMatch[1]); $nextSequence = $mediaSequence; break;
+    }
     foreach ($lines as $sourceIndex => $sourceLine) {
         $sourceTrim = trim($sourceLine);
         if (preg_match('/^#EXTINF:([0-9.]+)/i', $sourceTrim, $durationMatch)) {
             $pendingDuration = max(1.0, min(30.0, (float)$durationMatch[1]));
+        } elseif (preg_match('/^#EXT-X-DISCONTINUITY/i', $sourceTrim)) {
+            $pendingDiscontinuity = true;
+        } elseif (preg_match('/^#EXT-X-(?:KEY|MAP|BYTERANGE):/i', $sourceTrim)) {
+            $protectedPlaylist = true;
         } elseif ($sourceTrim !== '' && $sourceTrim[0] !== '#') {
             $sourceMedia[] = [
                 'line' => $sourceIndex,
                 'url' => iptv_resolve_url($baseUrl, $sourceTrim),
                 'duration' => $pendingDuration,
+                'sequence' => $nextSequence++,
+                'discontinuity' => $pendingDiscontinuity,
+                'protected' => $protectedPlaylist,
             ];
-            $pendingDuration = 10.0;
+            $pendingDuration = 10.0; $pendingDiscontinuity = false;
         }
     }
     // Some IPTV origins advertise their newest 10-second segment before it is
@@ -415,26 +539,32 @@ if ($looksLikePlaylist) {
     // and causes periodic stalls. Hide only that newest media segment; the
     // playlist still advances normally, with about ten seconds of safe delay.
     if (!$isVod && str_contains((string)$body, '#EXTINF:') && !str_contains((string)$body, '#EXT-X-STREAM-INF:')) {
+        $viewerCount = iptv_active_live_viewers();
+        $targetDelay = min(120, max(0, ($viewerCount - 1) * 20));
+        $queue = $targetDelay > 0 ? iptv_queue_live_prefetch($url, $sourceMedia, $streamMeta, $viewerCount, $targetDelay) : [];
+        $buffered = $targetDelay > 0 ? iptv_build_buffered_playlist($queue, $targetDelay, $token, $session) : [];
+        $effectiveDelay = 0;
+        if ($buffered) {
+            $lines = $buffered['lines'];
+            $effectiveDelay = (int)($buffered['actualDelay'] ?? $targetDelay);
+        }
         $mediaUris = [];
         foreach ($lines as $index => $candidate) {
             $candidate = trim($candidate);
             if ($candidate !== '' && $candidate[0] !== '#') $mediaUris[] = $index;
         }
         $lastSafePosition = count($mediaUris) - 1;
-        if (count($mediaUris) >= 4) {
-            $holdBack = 3;
+        if (!$buffered && count($mediaUris) >= 4) {
+            $averageDuration = $sourceMedia ? array_sum(array_column($sourceMedia, 'duration')) / count($sourceMedia) : 10.0;
+            $holdBack = max(1, (int)ceil($targetDelay / max(1.0, $averageDuration)));
             $holdBack = min($holdBack, count($mediaUris) - 3);
             $lastSafePosition = count($mediaUris) - 1 - $holdBack;
             $lastSafeUri = $mediaUris[count($mediaUris) - 1 - $holdBack];
             $lines = array_slice($lines, 0, $lastSafeUri + 1);
+            $effectiveDelay = (int)round($holdBack * $averageDuration);
         }
-        $prefetchEntries = [];
-        foreach ([$lastSafePosition + 1, $lastSafePosition + 2, $lastSafePosition, $lastSafePosition - 1, $lastSafePosition - 2, $lastSafePosition + 3] as $position) {
-            if (isset($sourceMedia[$position])) $prefetchEntries[] = $sourceMedia[$position];
-        }
-        iptv_queue_live_prefetch($url, $prefetchEntries, $streamMeta);
-        if (!str_contains((string)$body, '#EXT-X-START:')) {
-            array_splice($lines, 1, 0, ['#EXT-X-START:TIME-OFFSET=-25.0,PRECISE=NO']);
+        if (!str_contains(implode("\n", $lines), '#EXT-X-START:')) {
+            array_splice($lines, 1, 0, ['#EXT-X-START:TIME-OFFSET=-8.0,PRECISE=NO']);
         }
         // Never delay the playlist while downloading media. The previous
         // synchronous prefetch could hold this response for 20+ seconds and
@@ -462,7 +592,11 @@ if ($looksLikePlaylist) {
     iptv_save_session($token, $session);
     header('Content-Type: application/vnd.apple.mpegurl');
     header('Cache-Control: no-store');
-    if (!$isVod) header('X-TubeTV-Live-Delay: stable-60s');
+    if (!$isVod) {
+        header('X-TubeTV-Live-Delay: adaptive-' . (string)($effectiveDelay ?? 0) . 's');
+        header('X-TubeTV-Viewer-Count: ' . (string)($viewerCount ?? 1));
+        header('X-TubeTV-Buffer-Target: ' . (string)($targetDelay ?? 0));
+    }
     header('X-Content-Type-Options: nosniff');
     $playlistOutput = implode("\n", $lines); $GLOBALS['IPTV_METRIC_BYTES'] = strlen($playlistOutput);
     if (!empty($fetch['sharedCache'])) $GLOBALS['IPTV_METRIC_CACHE'] = 1;

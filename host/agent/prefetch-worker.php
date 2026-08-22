@@ -45,7 +45,10 @@ function prefetch_download(array $entries, string $cacheDir): array {
             $jobs[] = ['ready' => true, 'duration' => (float)($entry['duration'] ?? 10), 'bytes' => (int)@filesize($body)];
             continue;
         }
-        if ($startedDownloads >= 3) continue;
+        // One upstream media download at a time per channel. Channels are
+        // processed sequentially below, so provider traffic is naturally
+        // staggered instead of arriving in simultaneous bursts.
+        if ($startedDownloads >= 1) continue;
         $lock = @fopen($cacheDir . DIRECTORY_SEPARATOR . $id . '.prefetch.lock', 'c');
         if (!$lock || !@flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) fclose($lock); continue; }
         $tmpPath = $body . '.' . getmypid() . '.prefetch'; $stream = @fopen($tmpPath, 'wb');
@@ -110,8 +113,14 @@ while (true) {
     }
     usort($active, static fn(array $a, array $b): int => ((float)($b['updatedAt'] ?? 0)) <=> ((float)($a['updatedAt'] ?? 0)));
     $cycle = ['downloaded' => 0, 'failed' => 0, 'bytes' => 0, 'lastMs' => 0, 'ready' => 0, 'readySeconds' => 0.0];
+    $viewerPeak = 1; $targetDelayPeak = 0;
     foreach (array_slice($active, 0, 4) as $queue) {
-        $part = prefetch_download(array_slice((array)($queue['entries'] ?? []), 0, 6), $cacheDir);
+        $viewerPeak = max($viewerPeak, (int)($queue['viewerCount'] ?? 1));
+        $targetDelayPeak = max($targetDelayPeak, (int)($queue['targetDelaySeconds'] ?? 0));
+        // Start from the newest advertised piece, then backfill older pieces
+        // on following cycles while new segments are not yet available.
+        $entries = array_reverse(array_slice((array)($queue['entries'] ?? []), -18));
+        $part = prefetch_download($entries, $cacheDir);
         foreach (['downloaded', 'failed', 'bytes', 'ready'] as $key) $cycle[$key] += $part[$key];
         $cycle['readySeconds'] += $part['readySeconds']; $cycle['lastMs'] = max($cycle['lastMs'], $part['lastMs']);
     }
@@ -121,6 +130,7 @@ while (true) {
         'cacheBackend' => str_starts_with($cacheDir, '/dev/shm') ? 'ram' : 'ssd',
         'cacheLimitBytes' => 2147483648, 'retentionSeconds' => 360,
         'queueDepth' => array_sum(array_map(static fn(array $q): int => count((array)($q['entries'] ?? [])), $active)),
+        'viewerCount' => $viewerPeak, 'targetDelaySeconds' => $targetDelayPeak,
         'readySegments' => $cycle['ready'], 'readySeconds' => round($cycle['readySeconds'], 1),
         'downloadedCycle' => $cycle['downloaded'], 'failedCycle' => $cycle['failed'],
         'lastDownloadMs' => $cycle['lastMs'], 'cacheBytes' => 0,
