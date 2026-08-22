@@ -6,6 +6,35 @@ function iptv_segment_cache_dir(): string {
     $configured = trim((string)(getenv('TUBETV_SEGMENT_CACHE_DIR') ?: ''));
     return $configured !== '' ? rtrim($configured, '/\\') : iptv_private_dir() . DIRECTORY_SEPARATOR . 'iptv-segment-cache';
 }
+function iptv_fetch_shared_hls_playlist(string $url): array {
+    $cacheDir = iptv_private_dir() . DIRECTORY_SEPARATOR . 'iptv-playlist-cache';
+    iptv_ensure_private_dir($cacheDir);
+    $id = hash('sha256', $url); $bodyPath = $cacheDir . DIRECTORY_SEPARATOR . $id . '.m3u8';
+    $metaPath = $cacheDir . DIRECTORY_SEPARATOR . $id . '.json'; $lockPath = $cacheDir . DIRECTORY_SEPARATOR . $id . '.lock';
+    $read = static function() use ($bodyPath, $metaPath): array {
+        if (!is_file($bodyPath) || (int)@filemtime($bodyPath) < time() - 3) return [];
+        $body = (string)@file_get_contents($bodyPath); $meta = json_decode((string)@file_get_contents($metaPath), true);
+        if (!str_starts_with(ltrim($body), '#EXTM3U')) return [];
+        return ['ok' => true, 'body' => $body, 'effectiveUrl' => is_array($meta) ? (string)($meta['effectiveUrl'] ?? '') : '', 'error' => '', 'sharedCache' => true];
+    };
+    $cached = $read(); if ($cached) return $cached;
+    $lock = @fopen($lockPath, 'c');
+    if ($lock && @flock($lock, LOCK_EX)) {
+        $cached = $read();
+        if (!$cached) {
+            $fresh = iptv_fetch_hls_playlist($url, 10485760);
+            if (!empty($fresh['ok']) && str_starts_with(ltrim((string)($fresh['body'] ?? '')), '#EXTM3U')) {
+                @file_put_contents($bodyPath . '.tmp', (string)$fresh['body'], LOCK_EX); @rename($bodyPath . '.tmp', $bodyPath);
+                @file_put_contents($metaPath, json_encode(['effectiveUrl' => (string)($fresh['effectiveUrl'] ?? '')], JSON_UNESCAPED_SLASHES), LOCK_EX);
+                @chmod($bodyPath, 0600); @chmod($metaPath, 0600); $cached = $fresh; $cached['sharedCache'] = false;
+            } else $cached = $fresh;
+        }
+        @flock($lock, LOCK_UN); @fclose($lock);
+        return is_array($cached) ? $cached : ['ok' => false, 'error' => 'IPTV_PLAYLIST_CACHE_FAILED'];
+    }
+    if ($lock) @fclose($lock);
+    return iptv_fetch_hls_playlist($url, 10485760);
+}
 function iptv_prune_segment_cache(string $cacheDir, int $maxBytes = 201326592): void {
     $lock = @fopen($cacheDir . DIRECTORY_SEPARATOR . '.prune.lock', 'c');
     if (!$lock || !@flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) @fclose($lock); return; }
@@ -313,7 +342,7 @@ if ($isHlsMediaSegment && function_exists('curl_init')) {
     }
 }
 if ($looksLikePlaylist) {
-    $fetch = iptv_fetch_hls_playlist($url, 10485760);
+    $fetch = iptv_fetch_shared_hls_playlist($url);
     if (!$fetch['ok']) { http_response_code(502); exit($fetch['error']); }
     $body = $fetch['body'];
     if (!str_starts_with(ltrim((string)$body), '#EXTM3U')) {
@@ -363,6 +392,7 @@ if ($looksLikePlaylist) {
     if (preg_match('/dazn/i', $metaText) === 1) header('X-TubeTV-Live-Delay: stable-20s');
     header('X-Content-Type-Options: nosniff');
     $playlistOutput = implode("\n", $lines); $GLOBALS['IPTV_METRIC_BYTES'] = strlen($playlistOutput);
+    if (!empty($fetch['sharedCache'])) $GLOBALS['IPTV_METRIC_CACHE'] = 1;
     echo $playlistOutput;
     exit;
 }
