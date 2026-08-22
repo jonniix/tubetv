@@ -331,12 +331,10 @@ if ($looksLikePlaylist) {
             $lastSafeUri = $mediaUris[count($mediaUris) - 2];
             $lines = array_slice($lines, 0, $lastSafeUri + 1);
         }
-        $warmUrls = [];
-        foreach ($lines as $candidate) {
-            $candidate = trim($candidate);
-            if ($candidate !== '' && $candidate[0] !== '#') $warmUrls[] = iptv_resolve_url($baseUrl, $candidate);
-        }
-        iptv_warm_hls_segments($warmUrls);
+        // Never delay the playlist while downloading media. The previous
+        // synchronous prefetch could hold this response for 20+ seconds and
+        // compete with the segment the player actually needed. On-demand
+        // segment caching below still deduplicates concurrent viewers.
     }
     foreach ($lines as &$line) {
         $trim = trim($line);
