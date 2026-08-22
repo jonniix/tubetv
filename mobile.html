@@ -18,7 +18,8 @@
 const forceMobile = new URLSearchParams(location.search).get('mobile') === '1';
 if (!forceMobile && window.innerWidth >= 768) {
   const base = location.pathname.includes('/tube/') ? '/tube/' : './';
-  location.replace(base + 'index.html?desktop=1');
+  const params=new URLSearchParams(location.search);params.delete('mobile');params.set('desktop','1');
+  location.replace(base+'index.html?'+params.toString()+location.hash);
 }
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">

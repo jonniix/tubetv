@@ -19,8 +19,11 @@ if ($origin !== '') {
     header('Vary: Origin');
 }
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Range');
+header('Access-Control-Allow-Headers: Content-Type, Range, Access-Control-Request-Private-Network');
 header('Access-Control-Expose-Headers: Content-Length, Content-Range, Accept-Ranges');
+if ($originAllowed && strtolower(trim((string)($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? ''))) === 'true') {
+    header('Access-Control-Allow-Private-Network: true');
+}
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
     exit;

@@ -20,7 +20,8 @@ function getBasePath(){
 }
 
 function getMobileUrl(){
-  return getBasePath() + 'mobile.html';
+  const params=new URLSearchParams(location.search);params.delete('desktop');params.set('mobile','1');
+  return getBasePath()+'mobile.html'+(params.toString()?'?'+params.toString():'')+location.hash;
 }
 
 function isPhoneViewport(){
