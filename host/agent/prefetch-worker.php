@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
-require '/opt/tubetv-host/api/iptv-lib.php';
+require __DIR__ . '/api/iptv-lib.php';
 
 function prefetch_cache_dir(): string {
     $configured = trim((string)(getenv('TUBETV_SEGMENT_CACHE_DIR') ?: ''));
