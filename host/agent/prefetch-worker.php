@@ -9,7 +9,7 @@ function prefetch_cache_dir(): string {
     return $configured !== '' ? rtrim($configured, '/\\') : iptv_private_dir() . DIRECTORY_SEPARATOR . 'iptv-segment-cache';
 }
 
-function prefetch_prune(string $cacheDir, int $maxBytes = 335544320): void {
+function prefetch_prune(string $cacheDir, int $maxBytes = 2147483648): void {
     $lock = @fopen($cacheDir . DIRECTORY_SEPARATOR . '.prefetch-prune.lock', 'c');
     if (!$lock || !@flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) fclose($lock); return; }
     $now = time();
@@ -21,7 +21,7 @@ function prefetch_prune(string $cacheDir, int $maxBytes = 335544320): void {
     $files = []; $total = 0;
     foreach (glob($cacheDir . DIRECTORY_SEPARATOR . '*.bin') ?: [] as $path) {
         $size = max(0, (int)@filesize($path)); $mtime = (int)@filemtime($path);
-        if ($mtime < $now - 300) { @unlink($path); @unlink(substr($path, 0, -4) . '.json'); continue; }
+        if ($mtime < $now - 360) { @unlink($path); @unlink(substr($path, 0, -4) . '.json'); continue; }
         $files[] = ['path' => $path, 'size' => $size, 'mtime' => $mtime]; $total += $size;
     }
     if ($total > $maxBytes) {
@@ -119,6 +119,7 @@ while (true) {
     $state = array_merge($totals, [
         'ok' => true, 'updatedAt' => microtime(true), 'activeChannels' => count($active),
         'cacheBackend' => str_starts_with($cacheDir, '/dev/shm') ? 'ram' : 'ssd',
+        'cacheLimitBytes' => 2147483648, 'retentionSeconds' => 360,
         'queueDepth' => array_sum(array_map(static fn(array $q): int => count((array)($q['entries'] ?? [])), $active)),
         'readySegments' => $cycle['ready'], 'readySeconds' => round($cycle['readySeconds'], 1),
         'downloadedCycle' => $cycle['downloaded'], 'failedCycle' => $cycle['failed'],
@@ -126,6 +127,6 @@ while (true) {
     ]);
     foreach (glob($cacheDir . DIRECTORY_SEPARATOR . '*.bin') ?: [] as $cached) $state['cacheBytes'] += max(0, (int)@filesize($cached));
     @file_put_contents($statePath . '.tmp', json_encode($state, JSON_UNESCAPED_SLASHES), LOCK_EX); @rename($statePath . '.tmp', $statePath); @chmod($statePath, 0600);
-    if ($state['cacheBytes'] > 335544320 || disk_free_space($cacheDir) < 268435456 || random_int(1, 12) === 1) prefetch_prune($cacheDir);
+    if ($state['cacheBytes'] > 2147483648 || disk_free_space($cacheDir) < 1073741824 || random_int(1, 12) === 1) prefetch_prune($cacheDir);
     $elapsed = microtime(true) - $cycleStarted; if ($elapsed < 1.0) usleep((int)((1.0 - $elapsed) * 1000000));
 }

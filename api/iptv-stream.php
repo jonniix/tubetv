@@ -35,7 +35,7 @@ function iptv_fetch_shared_hls_playlist(string $url): array {
     if ($lock) @fclose($lock);
     return iptv_fetch_hls_playlist($url, 10485760);
 }
-function iptv_prune_segment_cache(string $cacheDir, int $maxBytes = 335544320): void {
+function iptv_prune_segment_cache(string $cacheDir, int $maxBytes = 2147483648): void {
     $lock = @fopen($cacheDir . DIRECTORY_SEPARATOR . '.prune.lock', 'c');
     if (!$lock || !@flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) @fclose($lock); return; }
     $files = []; $total = 0; $now = time();
@@ -50,7 +50,7 @@ function iptv_prune_segment_cache(string $cacheDir, int $maxBytes = 335544320): 
     }
     foreach (glob($cacheDir . DIRECTORY_SEPARATOR . '*.bin') ?: [] as $path) {
         $mtime = (int)@filemtime($path); $size = max(0, (int)@filesize($path));
-        if ($mtime < $now - 300) { @unlink($path); @unlink(substr($path, 0, -4) . '.json'); continue; }
+        if ($mtime < $now - 360) { @unlink($path); @unlink(substr($path, 0, -4) . '.json'); continue; }
         $files[] = ['path' => $path, 'mtime' => $mtime, 'size' => $size]; $total += $size;
     }
     if ($total > $maxBytes) {
@@ -311,7 +311,7 @@ if ($isHlsMediaSegment && function_exists('curl_init')) {
     $cacheDir = iptv_segment_cache_dir();
     iptv_ensure_private_dir($cacheDir);
     $freeBytes = @disk_free_space($cacheDir);
-    if (($freeBytes !== false && $freeBytes < 134217728) || random_int(1, 20) === 1) {
+    if (($freeBytes !== false && $freeBytes < 1073741824) || random_int(1, 20) === 1) {
         iptv_prune_segment_cache($cacheDir);
     }
     $cacheId = hash('sha256', $url);
@@ -319,7 +319,7 @@ if ($isHlsMediaSegment && function_exists('curl_init')) {
     $metaPath = $cacheDir . DIRECTORY_SEPARATOR . $cacheId . '.json';
     $lockPath = $cacheDir . DIRECTORY_SEPARATOR . $cacheId . '.lock';
     $serveCachedSegment = static function(string $bodyPath, string $metaPath): bool {
-        if (!is_file($bodyPath) || (int)@filesize($bodyPath) < 1 || (int)@filemtime($bodyPath) < time() - 240) return false;
+        if (!is_file($bodyPath) || (int)@filesize($bodyPath) < 1 || (int)@filemtime($bodyPath) < time() - 360) return false;
         $meta = json_decode((string)@file_get_contents($metaPath), true);
         $mime = is_array($meta) ? trim((string)($meta['mime'] ?? '')) : '';
         if ($mime === '') $mime = str_ends_with(strtolower($bodyPath), '.m4s') ? 'video/iso.segment' : 'video/mp2t';
