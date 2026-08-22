@@ -3003,8 +3003,9 @@ function startMobileIptvWatchdog(){
   clearInterval(_mobileIptvWatchdogTimer);_mobileIptvWatchdogTimer=setInterval(()=>{
     if(!IPTV_STATE.selectedId||video.paused||document.hidden)return;
     markMobileIptvProgress();
-    const stallLimit=video.dataset.playbackMode==='native-hls'?35000:18000;
-    if(Date.now()-_mobileIptvLastProgress>stallLimit)recoverMobileIptvPlayback('stall');
+    const nativeStalled=video.dataset.playbackMode==='native-hls'&&Date.now()-_mobileIptvLastProgress>35000;
+    const engineStalled=video.dataset.playbackMode!=='native-hls'&&Date.now()-_mobileIptvLastProgress>14000;
+    if(nativeStalled||engineStalled)recoverMobileIptvPlayback('stall');
   },3000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startMobileIptvWatchdog);else startMobileIptvWatchdog();
