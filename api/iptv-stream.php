@@ -366,7 +366,7 @@ if ($looksLikePlaylist) {
             if ($candidate !== '' && $candidate[0] !== '#') $mediaUris[] = $index;
         }
         if (count($mediaUris) >= 4) {
-            $holdBack = preg_match('/dazn/i', $metaText) === 1 ? 2 : 1;
+            $holdBack = preg_match('/dazn/i', $metaText) === 1 ? 3 : 1;
             $holdBack = min($holdBack, count($mediaUris) - 3);
             $lastSafeUri = $mediaUris[count($mediaUris) - 1 - $holdBack];
             $lines = array_slice($lines, 0, $lastSafeUri + 1);
@@ -389,7 +389,7 @@ if ($looksLikePlaylist) {
     iptv_save_session($token, $session);
     header('Content-Type: application/vnd.apple.mpegurl');
     header('Cache-Control: no-store');
-    if (preg_match('/dazn/i', $metaText) === 1) header('X-TubeTV-Live-Delay: stable-20s');
+    if (preg_match('/dazn/i', $metaText) === 1) header('X-TubeTV-Live-Delay: stable-60s');
     header('X-Content-Type-Options: nosniff');
     $playlistOutput = implode("\n", $lines); $GLOBALS['IPTV_METRIC_BYTES'] = strlen($playlistOutput);
     if (!empty($fetch['sharedCache'])) $GLOBALS['IPTV_METRIC_CACHE'] = 1;
