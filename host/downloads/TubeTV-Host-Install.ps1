@@ -52,19 +52,35 @@ if (-not $php) {
 if (-not $php) { throw 'Installazione PHP non riuscita.' }
 
 Write-Step 'Scarico TubeTV Host'
-$base = 'https://tubetv.online/host/agent'
-$rawApi = 'https://raw.githubusercontent.com/jonniix/tubetv/main/api'
-$downloads = @{
-    (Join-Path $appRoot 'router.php') = "$base/router.php"
-    (Join-Path $appRoot 'health.php') = "$base/health.php"
-    (Join-Path $appRoot 'catalog.php') = "$base/catalog.php"
-    (Join-Path $apiRoot 'iptv-lib.php') = "$rawApi/iptv-lib.php"
-    (Join-Path $apiRoot 'iptv-stream.php') = "$rawApi/iptv-stream.php"
-    (Join-Path $apiRoot 'iptv-transcode.php') = "$rawApi/iptv-transcode.php"
-    (Join-Path $apiRoot 'iptv-epg.php') = "$rawApi/iptv-epg.php"
+$bundleRoot = if ($SourceDrive) { Join-Path "$SourceDrive\" 'TubeTVHost-Bundle' } else { '' }
+$bundleFiles = @{
+    (Join-Path $appRoot 'router.php') = if ($bundleRoot) { Join-Path $bundleRoot 'router.php' } else { '' }
+    (Join-Path $appRoot 'health.php') = if ($bundleRoot) { Join-Path $bundleRoot 'health.php' } else { '' }
+    (Join-Path $appRoot 'catalog.php') = if ($bundleRoot) { Join-Path $bundleRoot 'catalog.php' } else { '' }
+    (Join-Path $apiRoot 'iptv-lib.php') = if ($bundleRoot) { Join-Path $bundleRoot 'api\iptv-lib.php' } else { '' }
+    (Join-Path $apiRoot 'iptv-stream.php') = if ($bundleRoot) { Join-Path $bundleRoot 'api\iptv-stream.php' } else { '' }
+    (Join-Path $apiRoot 'iptv-adaptive.php') = if ($bundleRoot) { Join-Path $bundleRoot 'api\iptv-adaptive.php' } else { '' }
+    (Join-Path $apiRoot 'iptv-transcode.php') = if ($bundleRoot) { Join-Path $bundleRoot 'api\iptv-transcode.php' } else { '' }
+    (Join-Path $apiRoot 'iptv-epg.php') = if ($bundleRoot) { Join-Path $bundleRoot 'api\iptv-epg.php' } else { '' }
 }
-foreach ($entry in $downloads.GetEnumerator()) {
-    Invoke-WebRequest -UseBasicParsing $entry.Value -OutFile $entry.Key
+$hasOfflineBundle = $bundleRoot -and -not ($bundleFiles.Values | Where-Object { -not (Test-Path -LiteralPath $_) })
+if ($hasOfflineBundle) {
+    Write-Host "Uso il motore incluso nell'SSD." -ForegroundColor Green
+    foreach ($entry in $bundleFiles.GetEnumerator()) { Copy-Item -LiteralPath $entry.Value -Destination $entry.Key -Force }
+} else {
+    $base = 'https://tubetv.online/host/agent'
+    $rawApi = 'https://raw.githubusercontent.com/jonniix/tubetv/main/api'
+    $downloads = @{
+        (Join-Path $appRoot 'router.php') = "$base/router.php"
+        (Join-Path $appRoot 'health.php') = "$base/health.php"
+        (Join-Path $appRoot 'catalog.php') = "$base/catalog.php"
+        (Join-Path $apiRoot 'iptv-lib.php') = "$rawApi/iptv-lib.php"
+        (Join-Path $apiRoot 'iptv-stream.php') = "$rawApi/iptv-stream.php"
+        (Join-Path $apiRoot 'iptv-adaptive.php') = "$rawApi/iptv-adaptive.php"
+        (Join-Path $apiRoot 'iptv-transcode.php') = "$rawApi/iptv-transcode.php"
+        (Join-Path $apiRoot 'iptv-epg.php') = "$rawApi/iptv-epg.php"
+    }
+    foreach ($entry in $downloads.GetEnumerator()) { Invoke-WebRequest -UseBasicParsing $entry.Value -OutFile $entry.Key }
 }
 
 Write-Step 'Configuro PHP leggero'

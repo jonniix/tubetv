@@ -1,5 +1,7 @@
 .env
 node_modules/
+.tubetv-local/
+desktop-worker/private/
 
 # Dati privati: utenti, credenziali IPTV, token e cache.
 private/*
