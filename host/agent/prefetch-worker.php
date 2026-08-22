@@ -41,7 +41,7 @@ function prefetch_download(array $entries, string $cacheDir): array {
         if ($url === '' || !iptv_url_allowed($url)) continue;
         $id = hash('sha256', $url); $body = $cacheDir . DIRECTORY_SEPARATOR . $id . '.bin';
         $meta = $cacheDir . DIRECTORY_SEPARATOR . $id . '.json';
-        if (is_file($body) && (int)@filesize($body) > 0 && (int)@filemtime($body) >= time() - 240) {
+        if (is_file($body) && (int)@filesize($body) > 100000 && (int)@filemtime($body) >= time() - 240) {
             $jobs[] = ['ready' => true, 'duration' => (float)($entry['duration'] ?? 10), 'bytes' => (int)@filesize($body)];
             continue;
         }
@@ -49,7 +49,10 @@ function prefetch_download(array $entries, string $cacheDir): array {
         // processed sequentially below, so provider traffic is naturally
         // staggered instead of arriving in simultaneous bursts.
         if ($startedDownloads >= 1) continue;
-        $lock = @fopen($cacheDir . DIRECTORY_SEPARATOR . $id . '.prefetch.lock', 'c');
+        // Share the exact same lock used by the on-demand player. The worker
+        // must skip a segment already being downloaded for a viewer instead
+        // of opening a duplicate provider connection for the same bytes.
+        $lock = @fopen($cacheDir . DIRECTORY_SEPARATOR . $id . '.lock', 'c');
         if (!$lock || !@flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) fclose($lock); continue; }
         $tmpPath = $body . '.' . getmypid() . '.prefetch'; $stream = @fopen($tmpPath, 'wb');
         if (!$stream) { @flock($lock, LOCK_UN); fclose($lock); continue; }
@@ -85,7 +88,9 @@ function prefetch_download(array $entries, string $cacheDir): array {
             continue;
         }
         $curl = $item['curl']; $job = $item['job']; $status = (int)(curl_getinfo($curl, CURLINFO_HTTP_CODE) ?: $job->status);
-        $ok = curl_errno($curl) === CURLE_OK && $status >= 200 && $status < 300 && $job->bytes > 0 && $job->bytes <= 33554432;
+        // Queue entries are media pieces (never encryption keys), so tiny
+        // HTTP-200 error bodies must not become reusable video cache files.
+        $ok = curl_errno($curl) === CURLE_OK && $status >= 200 && $status < 300 && $job->bytes > 100000 && $job->bytes <= 33554432;
         @fflush($job->stream); @fclose($job->stream);
         if ($ok) {
             if (!is_file($job->body)) @rename($job->tmp, $job->body); else @unlink($job->tmp);
