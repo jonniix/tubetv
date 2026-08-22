@@ -1,4 +1,4 @@
-const TV_CACHE = 'tubetv-tv-shell-v2';
+const TV_CACHE = 'tubetv-tv-shell-v3';
 const TV_SHELL = [
   './tv.html',
   './tv-lite.html',
@@ -12,7 +12,11 @@ const TV_SHELL = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(TV_CACHE).then(cache => cache.addAll(TV_SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(TV_CACHE)
+      .then(cache => Promise.allSettled(TV_SHELL.map(url => cache.add(url))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', event => {

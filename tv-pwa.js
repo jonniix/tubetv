@@ -1,5 +1,5 @@
 (function(){
-  var deferredPrompt=null,buttons=[],installRequested=false;
+  var deferredPrompt=null,buttons=[],installRequested=false,wakeLock=null;
   function isStandalone(){return !!((window.matchMedia&&window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches)||window.navigator.standalone===true)}
   function update(){buttons.forEach(function(button){button.hidden=isStandalone();button.textContent=deferredPrompt?'Installa TubeTV':'Scarica app TV'})}
   function closeHelp(){var old=document.getElementById('tv-install-message');if(old&&old.parentNode)old.parentNode.removeChild(old)}
@@ -9,7 +9,11 @@
     document.body.appendChild(box);document.getElementById('tv-install-close').onclick=closeHelp;setTimeout(function(){try{document.getElementById('tv-install-close').focus()}catch(e){}},30)
   }
   function promptInstall(){if(isStandalone()){showHelp();return}installRequested=true;if(!deferredPrompt){showHelp();return}try{deferredPrompt.prompt();if(deferredPrompt.userChoice&&deferredPrompt.userChoice.then)deferredPrompt.userChoice.then(function(){deferredPrompt=null;installRequested=false;update()})}catch(e){showHelp()}}
+  function keepScreenAwake(){if(!navigator.wakeLock||document.visibilityState!=='visible'||wakeLock)return;navigator.wakeLock.request('screen').then(function(lock){wakeLock=lock;lock.addEventListener('release',function(){wakeLock=null})}).catch(function(){wakeLock=null})}
   window.addEventListener('beforeinstallprompt',function(event){event.preventDefault();deferredPrompt=event;update();if(installRequested)promptInstall()});
   window.addEventListener('appinstalled',function(){deferredPrompt=null;installRequested=false;update();closeHelp()});
-  document.addEventListener('DOMContentLoaded',function(){buttons=Array.prototype.slice.call(document.querySelectorAll('[data-tv-install]'));buttons.forEach(function(button){button.addEventListener('click',promptInstall)});update();if('serviceWorker'in navigator)navigator.serviceWorker.register('./tv-sw.js?v=2',{scope:'./'}).then(function(reg){try{reg.update()}catch(e){}}).catch(function(){})});
+  document.addEventListener('visibilitychange',keepScreenAwake);
+  document.addEventListener('pointerdown',keepScreenAwake,{once:true});
+  document.addEventListener('keydown',keepScreenAwake,{once:true});
+  document.addEventListener('DOMContentLoaded',function(){buttons=Array.prototype.slice.call(document.querySelectorAll('[data-tv-install]'));buttons.forEach(function(button){button.addEventListener('click',promptInstall)});update();keepScreenAwake();if('serviceWorker'in navigator)navigator.serviceWorker.register('./tv-sw.js?v=3',{scope:'./'}).then(function(reg){try{reg.update()}catch(e){}}).catch(function(){})});
 }());
