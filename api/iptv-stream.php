@@ -262,6 +262,7 @@ if ($isHlsMediaSegment && function_exists('curl_init')) {
         return true;
     };
     if ($serveCachedSegment($bodyPath, $metaPath)) exit;
+    $deliveredLive = false;
     $lock = @fopen($lockPath, 'c');
     if ($lock && @flock($lock, LOCK_EX)) {
         // A concurrent request may have completed while this one waited.
@@ -269,23 +270,32 @@ if ($isHlsMediaSegment && function_exists('curl_init')) {
         $tmpPath = $bodyPath . '.' . getmypid() . '.tmp';
         $tmp = @fopen($tmpPath, 'wb');
         if ($tmp) {
-            $bytes = 0; $status = 0; $mime = '';
+            $bytes = 0; $status = 0; $mime = ''; $responseHeadersSent = false;
             $curl = curl_init($url);
             curl_setopt_array($curl, [
                 CURLOPT_FOLLOWLOCATION => true, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => 25,
                 CURLOPT_MAXREDIRS => 5, CURLOPT_USERAGENT => 'Lavf/61.1.100', CURLOPT_TCP_NODELAY => 1,
                 CURLOPT_HTTPHEADER => ['Accept: video/mp2t, video/mp4, audio/aac, */*'],
-                CURLOPT_HEADERFUNCTION => static function($curl, string $header) use (&$status, &$mime): int {
+                CURLOPT_HEADERFUNCTION => static function($curl, string $header) use (&$status, &$mime, &$responseHeadersSent): int {
                     $trimmed = trim($header);
                     if (preg_match('~^HTTP/\S+\s+(\d{3})~i', $trimmed, $match)) $status = (int)$match[1];
                     elseif (preg_match('/^Content-Type:\s*([^;\r\n]+)/i', $trimmed, $match)) $mime = strtolower(trim($match[1]));
+                    elseif ($trimmed === '' && !$responseHeadersSent && $status >= 200 && $status < 300) {
+                        http_response_code(200); header('Content-Type: ' . ($mime !== '' ? $mime : 'video/mp2t'));
+                        header('Cache-Control: private, max-age=90, immutable'); header('X-Accel-Buffering: no');
+                        header('X-Content-Type-Options: nosniff'); $responseHeadersSent = true;
+                    }
                     return strlen($header);
                 },
-                CURLOPT_WRITEFUNCTION => static function($curl, string $chunk) use ($tmp, &$bytes): int {
+                CURLOPT_WRITEFUNCTION => static function($curl, string $chunk) use ($tmp, &$bytes, &$deliveredLive): int {
+                    if (connection_aborted()) return 0;
                     $bytes += strlen($chunk);
                     if ($bytes > 33554432) return 0;
                     $written = fwrite($tmp, $chunk);
-                    return $written === false ? 0 : $written;
+                    if ($written === false) return 0;
+                    $deliveredLive = true; $GLOBALS['IPTV_METRIC_BYTES'] = (int)($GLOBALS['IPTV_METRIC_BYTES'] ?? 0) + strlen($chunk);
+                    echo $chunk; flush();
+                    return strlen($chunk);
                 },
             ]);
             $ok = curl_exec($curl); $curlStatus = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE); curl_close($curl);
@@ -298,6 +308,7 @@ if ($isHlsMediaSegment && function_exists('curl_init')) {
         }
         @flock($lock, LOCK_UN); @fclose($lock);
     } elseif ($lock) @fclose($lock);
+    if ($deliveredLive) exit;
     if ($serveCachedSegment($bodyPath, $metaPath)) {
         if (random_int(1, 100) === 1) foreach (glob($cacheDir . DIRECTORY_SEPARATOR . '*') ?: [] as $old) if ((int)@filemtime($old) < time() - 600) @unlink($old);
         exit;
