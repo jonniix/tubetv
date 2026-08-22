@@ -8,7 +8,7 @@ Type=simple
 User=tubetv
 Group=tubetv
 WorkingDirectory=/opt/tubetv-host
-Environment=TUBETV_SEGMENT_CACHE_DIR=/dev/shm/tubetv-segment-cache
+Environment=TUBETV_SEGMENT_CACHE_DIR=/var/cache/tubetv-segments
 ExecStart=/usr/bin/php /opt/tubetv-host/prefetch-worker.php
 Restart=always
 RestartSec=2

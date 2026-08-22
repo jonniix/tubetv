@@ -235,6 +235,7 @@ $prefetch = [
     'failuresTotal' => max(0, (int)($prefetch['failuresTotal'] ?? 0)),
     'bytesTotal' => max(0, (int)($prefetch['bytesTotal'] ?? 0)),
     'cacheBytes' => max(0, (int)($prefetch['cacheBytes'] ?? 0)),
+    'cacheBackend' => in_array((string)($prefetch['cacheBackend'] ?? ''), ['ram', 'ssd'], true) ? (string)$prefetch['cacheBackend'] : 'unknown',
     'lastDownloadMs' => max(0, (int)($prefetch['lastDownloadMs'] ?? 0)),
 ];
 $desktopAssist = dash_desktop_assist();

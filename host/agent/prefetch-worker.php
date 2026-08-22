@@ -118,6 +118,7 @@ while (true) {
     $totals['downloadsTotal'] += $cycle['downloaded']; $totals['failuresTotal'] += $cycle['failed']; $totals['bytesTotal'] += $cycle['bytes'];
     $state = array_merge($totals, [
         'ok' => true, 'updatedAt' => microtime(true), 'activeChannels' => count($active),
+        'cacheBackend' => str_starts_with($cacheDir, '/dev/shm') ? 'ram' : 'ssd',
         'queueDepth' => array_sum(array_map(static fn(array $q): int => count((array)($q['entries'] ?? [])), $active)),
         'readySegments' => $cycle['ready'], 'readySeconds' => round($cycle['readySeconds'], 1),
         'downloadedCycle' => $cycle['downloaded'], 'failedCycle' => $cycle['failed'],
