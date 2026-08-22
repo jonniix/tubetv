@@ -255,8 +255,9 @@ if ($channel !== '') {
         @chmod($activityPath, 0600);
     });
 }
-$metaText = strtolower(trim((string)($channelMeta['group'] ?? '') . ' ' . (string)($channelMeta['name'] ?? '')));
-$isVod = !empty($channelMeta['isVod']) || preg_match('/film|movie|cinema|vod|serie|series|24\/7/i', $metaText) === 1
+$streamMeta = $channelMeta ?: $takeoverMeta;
+$metaText = strtolower(trim((string)($streamMeta['group'] ?? '') . ' ' . (string)($streamMeta['name'] ?? '')));
+$isVod = !empty($streamMeta['isVod'])
     || preg_match('/\.(mp4|m4v|webm|mkv|avi|flv)$/', $path) === 1;
 $isContinuousLive = $channel !== '' && !$isVod && !$looksLikePlaylist;
 
@@ -359,19 +360,19 @@ if ($looksLikePlaylist) {
     // completely available. Playing at that edge leaves zero download margin
     // and causes periodic stalls. Hide only that newest media segment; the
     // playlist still advances normally, with about ten seconds of safe delay.
-    if (str_contains((string)$body, '#EXTINF:') && !str_contains((string)$body, '#EXT-X-STREAM-INF:')) {
+    if (!$isVod && str_contains((string)$body, '#EXTINF:') && !str_contains((string)$body, '#EXT-X-STREAM-INF:')) {
         $mediaUris = [];
         foreach ($lines as $index => $candidate) {
             $candidate = trim($candidate);
             if ($candidate !== '' && $candidate[0] !== '#') $mediaUris[] = $index;
         }
         if (count($mediaUris) >= 4) {
-            $holdBack = preg_match('/dazn/i', $metaText) === 1 ? 3 : 1;
+            $holdBack = 3;
             $holdBack = min($holdBack, count($mediaUris) - 3);
             $lastSafeUri = $mediaUris[count($mediaUris) - 1 - $holdBack];
             $lines = array_slice($lines, 0, $lastSafeUri + 1);
         }
-        if (preg_match('/dazn/i', $metaText) === 1 && !str_contains((string)$body, '#EXT-X-START:')) {
+        if (!str_contains((string)$body, '#EXT-X-START:')) {
             array_splice($lines, 1, 0, ['#EXT-X-START:TIME-OFFSET=-25.0,PRECISE=NO']);
         }
         // Never delay the playlist while downloading media. The previous
@@ -389,7 +390,7 @@ if ($looksLikePlaylist) {
     iptv_save_session($token, $session);
     header('Content-Type: application/vnd.apple.mpegurl');
     header('Cache-Control: no-store');
-    if (preg_match('/dazn/i', $metaText) === 1) header('X-TubeTV-Live-Delay: stable-60s');
+    if (!$isVod) header('X-TubeTV-Live-Delay: stable-60s');
     header('X-Content-Type-Options: nosniff');
     $playlistOutput = implode("\n", $lines); $GLOBALS['IPTV_METRIC_BYTES'] = strlen($playlistOutput);
     if (!empty($fetch['sharedCache'])) $GLOBALS['IPTV_METRIC_CACHE'] = 1;
