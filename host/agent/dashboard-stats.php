@@ -153,7 +153,8 @@ foreach (@file(__DIR__ . '/private/request-metrics.log', FILE_IGNORE_NEW_LINES |
     $metric = json_decode($line, true); if (!is_array($metric)) continue;
     $age = time() - (int)($metric['time'] ?? 0); if ($age < 0 || $age > 300) continue;
     $status = (int)($metric['status'] ?? 0); $type = (string)($metric['type'] ?? '');
-    $isProviderCall = in_array($type, ['channel', 'segment', 'relay'], true);
+    $isTakeover = !empty($metric['takeover']);
+    $isProviderCall = !$isTakeover && in_array($type, ['channel', 'segment', 'relay'], true);
     if ($status >= 400 || $status === 0) $requestMetrics['errorsFiveMinutes']++;
     if ($isProviderCall && ($status >= 400 || $status === 0)) $requestMetrics['providerErrorsFiveMinutes']++;
     if (!empty($metric['aborted'])) $requestMetrics['abortedFiveMinutes']++;
@@ -220,5 +221,10 @@ foreach ($workerPids as $index => $pid) {
 }
 $runtime = ['workers' => count($workerPids), 'processes' => $phpProcesses, 'busyWorkers' => $busyWorkers, 'mediaWorkers' => $mediaWorkers, 'idleWorkers' => max(0, count($workerPids) - $busyWorkers), 'workerDetails' => $workerDetails, 'activeStreams' => count(array_filter($viewers, static fn(array $v): bool => $v['live']))];
 $desktopAssist = dash_desktop_assist();
+foreach ($viewers as &$viewer) {
+    $requested = in_array((string)($viewer['deliveryMode'] ?? ''), ['adaptive-requested', 'desktop-adaptive'], true);
+    if ($requested) $viewer['deliveryMode'] = !empty($desktopAssist['online']) && (int)($desktopAssist['activeStreams'] ?? 0) > 0 ? 'desktop-adaptive' : 'adaptive-fallback';
+}
+unset($viewer);
 
 echo json_encode(['ok' => true, 'time' => gmdate('c'), 'server' => ['hostname' => gethostname() ?: 'tubetv-host', 'uptime' => (int)(float)trim((string)@file_get_contents('/proc/uptime')), 'load' => array_map(static fn($v): float => round((float)$v, 2), sys_getloadavg() ?: [0,0,0]), 'cpuPercent' => $cpuPercent, 'memoryUsed' => $memoryUsed, 'memoryTotal' => $memoryTotal, 'diskUsed' => max(0, $diskTotal - $diskFree), 'diskTotal' => $diskTotal, 'temperature' => dash_temperature(), 'pingMs' => dash_ping()], 'network' => ['downloadBps' => round($rxRate), 'uploadBps' => round($txRate), 'received' => $network['rx'], 'sent' => $network['tx']], 'streaming' => ['activeViewers' => count(array_filter($viewers, static fn(array $v): bool => $v['live'])), 'sessions' => $sessions, 'viewers' => array_slice($viewers, 0, 12)], 'requests' => $requestMetrics, 'catalog' => $catalog, 'runtime' => $runtime, 'desktopAssist' => $desktopAssist], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

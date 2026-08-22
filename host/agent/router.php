@@ -34,7 +34,7 @@ if ($path === '/api/iptv-stream.php' || $path === '/api/iptv-adaptive.php' || $p
     register_shutdown_function(static function() use ($requestMetricStarted, $requestMetricType): void {
         $metricPath = __DIR__ . '/private/request-metrics.log';
         $responseStatus = http_response_code(); if ($responseStatus === false || $responseStatus < 100) $responseStatus = 200;
-        $line = json_encode(['time' => time(), 'type' => $requestMetricType, 'client' => $GLOBALS['requestMetricClient'] ?? '', 'status' => $responseStatus, 'ms' => (int)round((microtime(true) - $requestMetricStarted) * 1000), 'bytes' => (int)($GLOBALS['IPTV_METRIC_BYTES'] ?? 0), 'cache' => !empty($GLOBALS['IPTV_METRIC_CACHE']) ? 1 : 0, 'aborted' => connection_aborted() ? 1 : 0], JSON_UNESCAPED_SLASHES) . "\n";
+        $line = json_encode(['time' => time(), 'type' => $requestMetricType, 'client' => $GLOBALS['requestMetricClient'] ?? '', 'status' => $responseStatus, 'ms' => (int)round((microtime(true) - $requestMetricStarted) * 1000), 'bytes' => (int)($GLOBALS['IPTV_METRIC_BYTES'] ?? 0), 'cache' => !empty($GLOBALS['IPTV_METRIC_CACHE']) ? 1 : 0, 'takeover' => !empty($GLOBALS['IPTV_METRIC_TAKEOVER']) ? 1 : 0, 'aborted' => connection_aborted() ? 1 : 0], JSON_UNESCAPED_SLASHES) . "\n";
         $handle = @fopen($metricPath, 'c+');
         if (!$handle) return;
         if (@flock($handle, LOCK_EX)) {
