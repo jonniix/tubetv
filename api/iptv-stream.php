@@ -143,11 +143,9 @@ $takeoverVod = !empty($takeoverMeta['isVod']) || preg_match('/film|movie|cinema|
 $takeoverHeavy = !$takeoverVod && preg_match('/dazn/i', $takeoverText) !== 1 && preg_match('/4k|super\s*hd|uhd/i', $takeoverText) === 1;
 $takeoverState = json_decode((string)@file_get_contents(iptv_private_dir() . DIRECTORY_SEPARATOR . 'adaptive-takeover.json'), true);
 $takeoverActive = is_array($takeoverState) && (int)($takeoverState['activeUntil'] ?? 0) >= time();
-$takeoverDraining = $takeoverActive && in_array((string)($takeoverState['phase'] ?? ''), ['draining', 'starting', 'retrying'], true);
-// Old catalog sessions do not attach channel metadata to each segment. During
-// the short drain phase stop those already-open segment requests too; as soon
-// as RTX is ready (or fails) unrelated direct channels are released again.
-if ($takeoverActive && ($takeoverHeavy || ($key !== '' && $takeoverDraining))) {
+// A takeover may interrupt only the exact heavy play session. Blocking every
+// mapped segment here would also freeze unrelated DAZN/origin viewers.
+if ($takeoverActive && $takeoverHeavy) {
     $GLOBALS['IPTV_METRIC_TAKEOVER'] = 1;
     http_response_code(409); header('Retry-After: 3'); header('Cache-Control: no-store');
     exit('IPTV_ADAPTIVE_TAKEOVER');
