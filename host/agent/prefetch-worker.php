@@ -9,7 +9,7 @@ function prefetch_cache_dir(): string {
     return $configured !== '' ? rtrim($configured, '/\\') : iptv_private_dir() . DIRECTORY_SEPARATOR . 'iptv-segment-cache';
 }
 
-function prefetch_prune(string $cacheDir, int $maxBytes = 201326592): void {
+function prefetch_prune(string $cacheDir, int $maxBytes = 335544320): void {
     $lock = @fopen($cacheDir . DIRECTORY_SEPARATOR . '.prefetch-prune.lock', 'c');
     if (!$lock || !@flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) fclose($lock); return; }
     $now = time();
@@ -35,7 +35,7 @@ function prefetch_prune(string $cacheDir, int $maxBytes = 201326592): void {
 }
 
 function prefetch_download(array $entries, string $cacheDir): array {
-    $multi = curl_multi_init(); $jobs = [];
+    $multi = curl_multi_init(); $jobs = []; $startedDownloads = 0;
     foreach ($entries as $entry) {
         $url = trim((string)($entry['url'] ?? ''));
         if ($url === '' || !iptv_url_allowed($url)) continue;
@@ -45,6 +45,7 @@ function prefetch_download(array $entries, string $cacheDir): array {
             $jobs[] = ['ready' => true, 'duration' => (float)($entry['duration'] ?? 10), 'bytes' => (int)@filesize($body)];
             continue;
         }
+        if ($startedDownloads >= 3) continue;
         $lock = @fopen($cacheDir . DIRECTORY_SEPARATOR . $id . '.prefetch.lock', 'c');
         if (!$lock || !@flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) fclose($lock); continue; }
         $tmpPath = $body . '.' . getmypid() . '.prefetch'; $stream = @fopen($tmpPath, 'wb');
@@ -67,6 +68,7 @@ function prefetch_download(array $entries, string $cacheDir): array {
             },
         ]);
         $jobs[spl_object_id($curl)] = ['curl' => $curl, 'job' => $job]; curl_multi_add_handle($multi, $curl);
+        $startedDownloads++;
     }
     $running = null;
     do {
@@ -109,7 +111,7 @@ while (true) {
     usort($active, static fn(array $a, array $b): int => ((float)($b['updatedAt'] ?? 0)) <=> ((float)($a['updatedAt'] ?? 0)));
     $cycle = ['downloaded' => 0, 'failed' => 0, 'bytes' => 0, 'lastMs' => 0, 'ready' => 0, 'readySeconds' => 0.0];
     foreach (array_slice($active, 0, 4) as $queue) {
-        $part = prefetch_download(array_slice((array)($queue['entries'] ?? []), 0, 3), $cacheDir);
+        $part = prefetch_download(array_slice((array)($queue['entries'] ?? []), 0, 6), $cacheDir);
         foreach (['downloaded', 'failed', 'bytes', 'ready'] as $key) $cycle[$key] += $part[$key];
         $cycle['readySeconds'] += $part['readySeconds']; $cycle['lastMs'] = max($cycle['lastMs'], $part['lastMs']);
     }
@@ -123,6 +125,6 @@ while (true) {
     ]);
     foreach (glob($cacheDir . DIRECTORY_SEPARATOR . '*.bin') ?: [] as $cached) $state['cacheBytes'] += max(0, (int)@filesize($cached));
     @file_put_contents($statePath . '.tmp', json_encode($state, JSON_UNESCAPED_SLASHES), LOCK_EX); @rename($statePath . '.tmp', $statePath); @chmod($statePath, 0600);
-    if (disk_free_space($cacheDir) < 134217728 || random_int(1, 12) === 1) prefetch_prune($cacheDir);
+    if ($state['cacheBytes'] > 335544320 || disk_free_space($cacheDir) < 268435456 || random_int(1, 12) === 1) prefetch_prune($cacheDir);
     $elapsed = microtime(true) - $cycleStarted; if ($elapsed < 1.0) usleep((int)((1.0 - $elapsed) * 1000000));
 }

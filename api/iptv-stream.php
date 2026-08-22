@@ -35,7 +35,7 @@ function iptv_fetch_shared_hls_playlist(string $url): array {
     if ($lock) @fclose($lock);
     return iptv_fetch_hls_playlist($url, 10485760);
 }
-function iptv_prune_segment_cache(string $cacheDir, int $maxBytes = 201326592): void {
+function iptv_prune_segment_cache(string $cacheDir, int $maxBytes = 335544320): void {
     $lock = @fopen($cacheDir . DIRECTORY_SEPARATOR . '.prune.lock', 'c');
     if (!$lock || !@flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) @fclose($lock); return; }
     $files = []; $total = 0; $now = time();
@@ -66,7 +66,7 @@ function iptv_queue_live_prefetch(string $manifestUrl, array $entries, array $me
     iptv_ensure_private_dir($queueDir);
     $channelKey = hash('sha256', $manifestUrl);
     $clean = [];
-    foreach (array_slice($entries, 0, 3) as $entry) {
+    foreach (array_slice($entries, 0, 6) as $entry) {
         $entryUrl = trim((string)($entry['url'] ?? ''));
         if ($entryUrl === '' || !iptv_url_allowed($entryUrl)) continue;
         $clean[] = ['url' => $entryUrl, 'duration' => max(1.0, min(30.0, (float)($entry['duration'] ?? 10.0)))];
@@ -429,7 +429,7 @@ if ($looksLikePlaylist) {
             $lines = array_slice($lines, 0, $lastSafeUri + 1);
         }
         $prefetchEntries = [];
-        foreach ([$lastSafePosition + 1, $lastSafePosition + 2, $lastSafePosition] as $position) {
+        foreach ([$lastSafePosition + 1, $lastSafePosition + 2, $lastSafePosition, $lastSafePosition - 1, $lastSafePosition - 2, $lastSafePosition + 3] as $position) {
             if (isset($sourceMedia[$position])) $prefetchEntries[] = $sourceMedia[$position];
         }
         iptv_queue_live_prefetch($url, $prefetchEntries, $streamMeta);
