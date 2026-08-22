@@ -60,6 +60,34 @@ function iptv_prune_segment_cache(string $cacheDir, int $maxBytes = 201326592): 
     @flock($lock, LOCK_UN); @fclose($lock);
 }
 
+function iptv_queue_live_prefetch(string $manifestUrl, array $entries, array $meta = []): void {
+    if (!$entries) return;
+    $queueDir = iptv_private_dir() . DIRECTORY_SEPARATOR . 'iptv-prefetch-queue';
+    iptv_ensure_private_dir($queueDir);
+    $channelKey = hash('sha256', $manifestUrl);
+    $clean = [];
+    foreach (array_slice($entries, 0, 3) as $entry) {
+        $entryUrl = trim((string)($entry['url'] ?? ''));
+        if ($entryUrl === '' || !iptv_url_allowed($entryUrl)) continue;
+        $clean[] = ['url' => $entryUrl, 'duration' => max(1.0, min(30.0, (float)($entry['duration'] ?? 10.0)))];
+    }
+    if (!$clean) return;
+    $payload = [
+        'version' => 1,
+        'channelKey' => $channelKey,
+        'channel' => substr((string)($meta['name'] ?? 'Canale live'), 0, 160),
+        'group' => substr((string)($meta['group'] ?? 'TV'), 0, 160),
+        'updatedAt' => microtime(true),
+        'entries' => $clean,
+    ];
+    $path = $queueDir . DIRECTORY_SEPARATOR . $channelKey . '.json';
+    $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (!is_string($encoded)) return;
+    @file_put_contents($path . '.tmp', $encoded, LOCK_EX);
+    @rename($path . '.tmp', $path);
+    @chmod($path, 0600);
+}
+
 function iptv_warm_hls_segments(array $urls): void {
     if (!function_exists('curl_multi_init')) return;
     $cacheDir = iptv_segment_cache_dir();
@@ -367,6 +395,21 @@ if ($looksLikePlaylist) {
     }
     $baseUrl = iptv_url_allowed((string)($fetch['effectiveUrl'] ?? '')) ? (string)$fetch['effectiveUrl'] : $url;
     $lines = preg_split('/\r\n|\r|\n/', (string)$body) ?: [];
+    $sourceMedia = [];
+    $pendingDuration = 10.0;
+    foreach ($lines as $sourceIndex => $sourceLine) {
+        $sourceTrim = trim($sourceLine);
+        if (preg_match('/^#EXTINF:([0-9.]+)/i', $sourceTrim, $durationMatch)) {
+            $pendingDuration = max(1.0, min(30.0, (float)$durationMatch[1]));
+        } elseif ($sourceTrim !== '' && $sourceTrim[0] !== '#') {
+            $sourceMedia[] = [
+                'line' => $sourceIndex,
+                'url' => iptv_resolve_url($baseUrl, $sourceTrim),
+                'duration' => $pendingDuration,
+            ];
+            $pendingDuration = 10.0;
+        }
+    }
     // Some IPTV origins advertise their newest 10-second segment before it is
     // completely available. Playing at that edge leaves zero download margin
     // and causes periodic stalls. Hide only that newest media segment; the
@@ -377,12 +420,19 @@ if ($looksLikePlaylist) {
             $candidate = trim($candidate);
             if ($candidate !== '' && $candidate[0] !== '#') $mediaUris[] = $index;
         }
+        $lastSafePosition = count($mediaUris) - 1;
         if (count($mediaUris) >= 4) {
             $holdBack = 3;
             $holdBack = min($holdBack, count($mediaUris) - 3);
+            $lastSafePosition = count($mediaUris) - 1 - $holdBack;
             $lastSafeUri = $mediaUris[count($mediaUris) - 1 - $holdBack];
             $lines = array_slice($lines, 0, $lastSafeUri + 1);
         }
+        $prefetchEntries = [];
+        foreach ([$lastSafePosition + 1, $lastSafePosition + 2, $lastSafePosition] as $position) {
+            if (isset($sourceMedia[$position])) $prefetchEntries[] = $sourceMedia[$position];
+        }
+        iptv_queue_live_prefetch($url, $prefetchEntries, $streamMeta);
         if (!str_contains((string)$body, '#EXT-X-START:')) {
             array_splice($lines, 1, 0, ['#EXT-X-START:TIME-OFFSET=-25.0,PRECISE=NO']);
         }

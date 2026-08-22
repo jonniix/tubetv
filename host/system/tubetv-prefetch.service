@@ -1,0 +1,22 @@
+[Unit]
+Description=TubeTV live HLS prefetch worker
+After=network-online.target tubetv-host.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tubetv
+Group=tubetv
+WorkingDirectory=/opt/tubetv-host
+Environment=TUBETV_SEGMENT_CACHE_DIR=/dev/shm/tubetv-segment-cache
+ExecStart=/usr/bin/php /opt/tubetv-host/prefetch-worker.php
+Restart=always
+RestartSec=2
+Nice=-3
+CPUWeight=180
+IOWeight=180
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
