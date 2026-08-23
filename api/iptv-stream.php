@@ -563,7 +563,10 @@ if ($looksLikePlaylist) {
             $lines = array_slice($lines, 0, $lastSafeUri + 1);
             $effectiveDelay = (int)round($holdBack * $averageDuration);
         }
-        if (!str_contains(implode("\n", $lines), '#EXT-X-START:')) {
+        $userAgent = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+        $appleNativeHls = preg_match('/iPhone|iPad|iPod/i', $userAgent) === 1
+            || (str_contains($userAgent, 'Macintosh') && str_contains($userAgent, 'Mobile/'));
+        if (!$appleNativeHls && !str_contains(implode("\n", $lines), '#EXT-X-START:')) {
             array_splice($lines, 1, 0, ['#EXT-X-START:TIME-OFFSET=-8.0,PRECISE=NO']);
         }
         // Never delay the playlist while downloading media. The previous
