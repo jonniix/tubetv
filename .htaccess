@@ -3,7 +3,7 @@
 </IfModule>
 
 <IfModule mod_headers.c>
-  <FilesMatch "^(bot|admin|index|mobile|tv|tv-connect)\.html$">
+  <FilesMatch "^(bot|admin|index|mobile|iptv|tv|tv-connect)\.html$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header set Pragma "no-cache"
     Header set Expires "0"
@@ -28,6 +28,7 @@
   RewriteRule ^data/(?:live-presence\.json|.*\.bak|\.bot.*|.*\.lock|.*\.tmp)$ - [F,L,NC]
 
   RewriteRule ^tv/?$ tv.html [L,NC]
+  RewriteRule ^iptv/?$ iptv.html [L,NC]
   RewriteRule ^tv-connect/?$ tv-connect.html [L,NC]
   RewriteRule ^host/?$ host/index.html [L,NC]
 </IfModule>
