@@ -2897,13 +2897,7 @@ const IPTV_MOBILE_RULES={
 const IPTV_MOBILE_PROVIDERS=[
  {value:'sky',label:'Sky',note:'Sport, Cinema, News e intrattenimento',brand:'sky',rx:/\bsky\b/i},
  {value:'dazn',label:'DAZN',note:'Calcio, sport ed eventi live',brand:'DAZN',rx:/\bdazn\b/i},
- {value:'rai',label:'Rai',note:'Canali generalisti e tematici Rai',brand:'Rai',rx:/\brai(?:play)?\b/i},
- {value:'mediaset',label:'Mediaset',note:'Canale 5, Italia 1, Rete 4 e tematici',brand:'MEDIASET',rx:/mediaset|canale\s*5|italia\s*1|rete\s*4|cine34|iris|la5|top\s*crime|boing|cartoonito/i},
- {value:'discovery',label:'Discovery & Warner',note:'Eurosport, Nove, DMAX e lifestyle',brand:'WBD',rx:/discovery|eurosport|real\s*time|dmax|giallo|food\s*network|motor\s*trend|warner|\bnove\b/i},
- {value:'italian',label:'TV italiana',note:'La7, TV8, generalisti e reti locali',brand:'TV',rx:/italia|italy|\bita\b|generalist|regional|locale|\bla\s*7\b|\btv8\b/i},
- {value:'sport',label:'Altri sport',note:'Canali sportivi specializzati',brand:'SPORT',rx:/sport|calcio|football|tennis|motogp|formula|basket|golf/i},
- {value:'international',label:'Internazionali',note:'Canali esteri organizzati per paese',brand:'WORLD',rx:/international|world|france|german|deutsch|spain|espa|portugal|\buk\b|\busa\b|arab|turk|greek|pol|roman|latino/i},
- {value:'other',label:'Altri provider',note:'Altri bouquet disponibili',brand:'TV+',general:true}
+ {value:'italian',label:'TV italiana',note:'Rai, Mediaset, Discovery, locali e altri canali',brand:'TV',general:true}
 ];
 function mobileIptvProviderValue(group){return (IPTV_MOBILE_PROVIDERS.find(item=>!item.general&&item.rx.test(String(group||'')))||IPTV_MOBILE_PROVIDERS.at(-1)).value}
 function mobileIptvProviderGroups(value){const source=(IPTV_STATE.browseGroups||[]).length?IPTV_STATE.browseGroups:[...new Set((IPTV_STATE.channels||[]).filter(channel=>mobileIptvContentType(channel)==='live').map(channel=>String(channel.group||'Altri provider').trim()))].map(name=>({name,count:(IPTV_STATE.channels||[]).filter(channel=>mobileIptvContentType(channel)==='live'&&String(channel.group||'Altri provider').trim()===name).length}));return source.filter(item=>mobileIptvProviderValue(item.name)===value)}
