@@ -4,7 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/api/bot-v3-engine.php';
 function v3_check(bool $condition, string $message): void { if (!$condition) throw new RuntimeException($message); }
 
-$path = __DIR__ . '/data/tubetv-data.json';
+$path = getenv('TUBETV_TEST_DATA') ?: (__DIR__ . '/data/tubetv-data.json');
 $data = json_decode((string)file_get_contents($path), true);
 v3_check(is_array($data), 'JSON principale non leggibile');
 $now = time();
@@ -36,6 +36,10 @@ v3_check(($status['settings']['freshnessWeight'] ?? 0) === 100, 'Profilo attuale
 v3_check(($status['settings']['repeatCooldownDays'] ?? 0) === 30, 'Anti-replica default non corrisponde alla modalita attuale');
 v3_check(($status['settings']['minDurationMinutes'] ?? 0) === 5 && ($status['settings']['maxDurationMinutes'] ?? 0) === 90, 'Durate default cambiate');
 v3_check(($status['settings']['requireVerifiedItalianAudio'] ?? false) === true, 'Vincolo audio italiano non attivo');
+v3_check(($status['supplyAnalytics']['windowDays'] ?? 0) === 30, 'Analisi editoriale non usa gli ultimi 30 giorni');
+v3_check(array_key_exists('overallCoveragePercent', $status['supplyAnalytics'] ?? []), 'Copertura editoriale complessiva assente');
+v3_check(is_array($status['supplyAnalytics']['sources'] ?? null) && is_array($status['supplyAnalytics']['slots'] ?? null), 'Analisi fonti o fasce assente');
+v3_check(is_array($status['supplyAnalytics']['replicaVideos'] ?? null), 'Elenco video replicati assente');
 v3_tick($data, $now + 10, 'cron');
 $cronStatus = v3_status($data, $now + 10);
 v3_check(!empty($cronStatus['cronActive']) && ($cronStatus['cronAgeSeconds'] ?? -1) === 0, 'Heartbeat cron V3 non rilevato');
@@ -51,6 +55,8 @@ v3_check(strpos($admin, 'panel-bot-v3') !== false && strpos($admin, 'Bot Palinse
 v3_check(strpos($admin, 'Regole di creazione palinsesto') !== false && strpos($admin, 'saveBotV3Settings()') !== false && strpos($admin, 'bot-setting-categories') !== false, 'Controlli facili del profilo palinsesto assenti');
 v3_check(strpos($admin, 'bot-v3-availability-status') !== false && strpos($admin, 'Video nascosti') !== false, 'Diagnostica disponibilita video assente');
 v3_check(strpos($admin, 'bot-v3-future') !== false && strpos($admin, 'Previsione dinamica delle prossime 72 ore') !== false, 'Interfaccia previsione futura assente');
+v3_check(strpos($admin, 'Intelligenza editoriale · copertura e repliche') !== false && strpos($admin, 'renderBotV3SupplyAnalytics') !== false, 'Console sostenibilita editoriale assente');
+v3_check(strpos($admin, 'Rendimento delle fonti · ultimi 30 giorni') !== false && strpos($admin, 'Video che verranno replicati nelle 72 ore') !== false, 'Dettaglio fonti o repliche assente');
 v3_check(strpos($admin, 'Solo audio italiano verificato (obbligatorio)') !== false, 'Admin non mostra il vincolo audio italiano');
 v3_check(strpos($admin, 'TITOLO EN - AUDIO IT GARANTITO') !== false && strpos($admin, 'TRACCIA IT NON GARANTITA - ESCLUSO') !== false && strpos($admin, 'SUBENTRATO') !== false && strpos($admin, 'TITOLO IT UFFICIALE') !== false, 'Badge editoriali della previsione incompleti');
 v3_check(strpos($admin, 'api/bot-tick.php') === false && strpos($admin, "location.href = 'bot.html") === false, 'Admin collegato a un bot legacy');
