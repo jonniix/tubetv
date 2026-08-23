@@ -542,7 +542,12 @@ if ($looksLikePlaylist) {
         $viewerCount = iptv_active_live_viewers();
         $targetDelay = min(120, max(0, ($viewerCount - 1) * 20));
         $queue = $targetDelay > 0 ? iptv_queue_live_prefetch($url, $sourceMedia, $streamMeta, $viewerCount, $targetDelay) : [];
-        $buffered = $targetDelay > 0 ? iptv_build_buffered_playlist($queue, $targetDelay, $token, $session) : [];
+        // Never replace a moving live playlist with an older cached window.
+        // When the buffered window becomes ready (or temporarily incomplete),
+        // its media sequence can move backwards and native Safari then stops
+        // requesting segments. Keep the provider sequence monotonic and use
+        // the queue only to warm immutable media files for concurrent viewers.
+        $buffered = [];
         $effectiveDelay = 0;
         if ($buffered) {
             $lines = $buffered['lines'];
