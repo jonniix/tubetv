@@ -626,10 +626,6 @@ label:has(#bot-auto-toggle){
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="15" rx="2"/><polyline points="17 2 12 7 7 2"/></svg>
           Canali TV
         </button>
-        <button class="sidebar-btn" onclick="switchAdmin('iptv',this)">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M5 12.55a11 11 0 0 1 14.08 0"/><rect x="3" y="10" width="18" height="11" rx="2"/><path d="M9 15l3 2 3-2"/></svg>
-          Playlist IPTV
-        </button>
       </div>
       <div class="sidebar-section">
         <div class="sidebar-label">Programmazione</div>
@@ -1723,63 +1719,6 @@ label:has(#bot-auto-toggle){
             <tbody id="tv-items-table"></tbody>
           </table>
           <div id="tv-items-empty" style="text-align:center;padding:2rem;color:var(--muted);display:none;">Nessun canale TV. Attiva la spunta <strong>📺 TV</strong> nella sezione Canali YouTube.</div>
-        </div>
-      </div>
-
-      <!-- IPTV PANEL: credentials are stored only by api/iptv-config.php -->
-      <div class="admin-panel" id="panel-iptv">
-        <div class="admin-header">
-          <h2>Playlist IPTV privata</h2>
-          <p>Collega una playlist M3U o un account Xtream. Le credenziali restano nella cartella privata del server e non entrano negli export pubblici.</p>
-        </div>
-        <div class="admin-card">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Stato catalogo IPTV</label>
-              <label style="display:flex;align-items:center;gap:.55rem;margin-top:.55rem;"><input type="checkbox" id="iptv-enabled" style="width:auto;"> Abilitato nel Catalogo TV</label>
-            </div>
-            <div class="form-group">
-              <label>Nome pubblico</label>
-              <input type="text" id="iptv-label" value="Catalogo IPTV completo" placeholder="Catalogo IPTV completo">
-            </div>
-            <div class="form-group">
-              <label>Tipo sorgente</label>
-              <select id="iptv-mode" onchange="toggleIptvAdminMode()"><option value="m3u">Link playlist M3U</option><option value="xtream">Xtream Codes</option></select>
-            </div>
-          </div>
-          <div id="iptv-m3u-fields" class="form-row">
-            <div class="form-group" style="grid-column:1/-1;">
-              <label>URL playlist M3U</label>
-              <input type="password" id="iptv-m3u-url" autocomplete="new-password" placeholder="Lascia vuoto per mantenere il link già salvato">
-              <small id="iptv-m3u-saved" style="color:var(--muted);">Nessun link salvato</small>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label>Guida TV XMLTV / EPG</label><input type="password" id="iptv-epg-url" autocomplete="new-password" placeholder="Opzionale per M3U · automatica con Xtream"><small id="iptv-epg-saved" style="color:var(--muted);">Nessun URL EPG personalizzato</small></div>
-          </div>
-          <div id="iptv-xtream-fields" style="display:none;">
-            <div class="form-row">
-              <div class="form-group"><label>Server / Portale</label><input type="url" id="iptv-server-url" placeholder="https://provider.example:8080"></div>
-              <div class="form-group"><label>Username</label><input type="text" id="iptv-username" autocomplete="off"></div>
-              <div class="form-group"><label>Password</label><input type="password" id="iptv-password" autocomplete="new-password" placeholder="Lascia vuoto per mantenerla"></div>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>PIN di accesso utenti</label>
-              <input type="password" inputmode="numeric" id="iptv-access-pin" placeholder="6594" maxlength="12" autocomplete="new-password">
-              <small style="color:var(--muted);">Se lasci vuoto resta quello già salvato. Il valore predefinito iniziale è 6594.</small>
-            </div>
-          </div>
-          <div style="display:flex;gap:.65rem;flex-wrap:wrap;margin-top:1rem;">
-            <button class="btn-add" onclick="saveIptvAdminConfig(false)">Salva configurazione</button>
-            <button class="btn-secondary" onclick="saveIptvAdminConfig(true)">Salva e prova playlist</button>
-          </div>
-          <div id="iptv-admin-status" style="margin-top:1rem;color:var(--muted);font-size:.82rem;">Caricamento configurazione privata…</div>
-        </div>
-        <div class="admin-card" style="margin-top:1rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;"><div><h3 style="margin:0 0 .25rem;">Dispositivi IPTV</h3><p style="margin:0;color:var(--muted);font-size:.82rem;">Ogni browser deve essere approvato prima di poter caricare playlist e stream.</p></div><button class="btn-secondary" onclick="loadIptvDevices()">Aggiorna dispositivi</button></div>
-          <div class="table-wrap" style="margin-top:1rem;"><table><thead><tr><th>Stato</th><th>Dispositivo</th><th>Account</th><th>Ultimo accesso</th><th>Azioni</th></tr></thead><tbody id="iptv-devices-table"><tr><td colspan="5" style="color:var(--muted);">Caricamento…</td></tr></tbody></table></div>
         </div>
       </div>
 
@@ -9548,7 +9487,6 @@ function switchAdmin(p,btn){
   }
   if(p==='topContent'){renderTopContentTable();}
   if(p==='tv'){renderTVTable();updateTVForm();}
-  if(p==='iptv'){loadIptvAdminConfig(true);}
   if(p==='eventi'){renderEventiAdmin();}
   if(p==='ads'){renderAdsPanel();}
   if(p==='bot-h24'){renderBotStatus();renderBotReasoning();}

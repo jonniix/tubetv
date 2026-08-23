@@ -23,10 +23,10 @@ if ($action === 'verify_remote_pair') {
     $devices[$index]['commands'] = array_slice($devices[$index]['commands'], -30);
     tv_write_file(tv_devices_path(), $devices); tv_devices_unlock($deviceLock); auth_json_response(['ok' => true, 'remoteToken' => $remoteToken, 'expiresAt' => gmdate('c', time() + 43200)]);
 }
-$allowed = ['HOME','TV','LIVE','TV_LITE','OPEN_IPTV','PLAY_PAUSE','VOLUME_UP','VOLUME_DOWN','BACK','UP','DOWN','LEFT','RIGHT','OK'];
+$allowed = ['HOME','TV','LIVE','TV_LITE','PLAY_PAUSE','VOLUME_UP','VOLUME_DOWN','BACK','UP','DOWN','LEFT','RIGHT','OK'];
 if (!in_array($command, $allowed, true)) auth_json_response(['ok' => false, 'error' => 'COMMAND_INVALID'], 400);
 // The authenticated account already owns this approved TV. No second 4-digit pairing is required.
 $payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
-if ($command === 'OPEN_IPTV') $payload = ['session' => substr(trim((string)($payload['session'] ?? '')), 0, 128), 'channel' => is_array($payload['channel'] ?? null) ? array_intersect_key($payload['channel'], array_flip(['id','name','logo','group','format'])) : []]; else $payload = [];
+$payload = [];
 $seq = (int)($devices[$index]['commandSeq'] ?? 0) + 1; $devices[$index]['commandSeq'] = $seq; $devices[$index]['commands'][] = ['seq' => $seq, 'command' => $command, 'payload' => $payload, 'createdAt' => gmdate('c')]; $devices[$index]['commands'] = array_slice($devices[$index]['commands'], -30); tv_write_file(tv_devices_path(), $devices); tv_devices_unlock($deviceLock);
 auth_json_response(['ok' => true, 'seq' => $seq]);

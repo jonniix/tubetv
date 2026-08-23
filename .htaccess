@@ -3,7 +3,7 @@
 </IfModule>
 
 <IfModule mod_headers.c>
-  <FilesMatch "^(bot|admin|index|mobile|iptv|tv|tv-connect)\.html$">
+  <FilesMatch "^(bot|admin|index|mobile|tv|tv-connect)\.html$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header set Pragma "no-cache"
     Header set Expires "0"
@@ -28,7 +28,9 @@
   RewriteRule ^data/(?:live-presence\.json|.*\.bak|\.bot.*|.*\.lock|.*\.tmp)$ - [F,L,NC]
 
   RewriteRule ^tv/?$ tv.html [L,NC]
-  RewriteRule ^iptv/?$ iptv.html [L,NC]
+  # La vecchia area IPTV privata e tutti i relativi endpoint sono dismessi.
+  RewriteRule ^iptv(?:\.html|/)?$ / [R=302,L,NC]
+  RewriteRule ^api/(?:_iptv-host-auth|iptv-[^/]+|tv-lite-iptv|tv-remote-catalog)\.php$ - [G,L,NC]
+  RewriteRule ^host(?:/|$) - [G,L,NC]
   RewriteRule ^tv-connect/?$ tv-connect.html [L,NC]
-  RewriteRule ^host/?$ host/index.html [L,NC]
 </IfModule>

@@ -1083,9 +1083,8 @@ body.tutv-fs-active .tutv-exit-fs-btn{
   #live-player-outer.mobile-landscape-target #live-player-div,
   #live-player-outer.mobile-landscape-target iframe{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;aspect-ratio:auto!important;background:#000!important}
 }
+#iptv-overlay{display:none!important}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js" defer></script>
 </head>
 <body>
 
@@ -3156,12 +3155,11 @@ function buildTvItemCard(group,item,index){
 function getAllTvVideos(groups){const seen=new Set();return groups.flatMap(g=>g.items).filter(v=>{const id=tvItemVideoId(v);if(!id||seen.has(id))return false;seen.add(id);return true;}).sort((a,b)=>(getItalianTitle(a)||'').localeCompare(getItalianTitle(b)||'','it',{sensitivity:'base'}));}
 function renderTV(){
   const root=document.getElementById('tv-content');if(!root)return;
-  const iptvEntry=renderIptvEntryCard();
   const groups=getTvFilteredGroups();
   const queryValue=document.getElementById('tv-search')?.value||'';
-  if(!groups.length){root.innerHTML=iptvEntry+`<input id="tv-search" class="tv-search" placeholder="Cerca programmi TV, episodi o canali..." value="${esc(queryValue)}" oninput="renderTV()"><p style="color:var(--muted);font-size:.82rem;">Nessun contenuto TV disponibile.</p>`;return;}
+  if(!groups.length){root.innerHTML=`<input id="tv-search" class="tv-search" placeholder="Cerca programmi TV, episodi o canali..." value="${esc(queryValue)}" oninput="renderTV()"><p style="color:var(--muted);font-size:.82rem;">Nessun contenuto TV disponibile.</p>`;return;}
   const allVideos=getAllTvVideos(groups);
-  root.innerHTML=iptvEntry+`<input id="tv-search" class="tv-search" placeholder="Cerca programmi TV, episodi o canali..." value="${esc(queryValue)}" oninput="renderTV()">${renderTvProgramGrid(groups)}${renderTvContinueWatching(groups)}${renderTvRows(groups)}<div class="section" style="padding:0;margin-top:1.5rem;"><div class="section-title">Tutti i video TV <span>A-Z</span></div><div class="video-grid">${allVideos.map(v=>buildVideoCard(tvNormalizeItem(v))).join('')}</div></div>`;
+  root.innerHTML=`<input id="tv-search" class="tv-search" placeholder="Cerca programmi TV, episodi o canali..." value="${esc(queryValue)}" oninput="renderTV()">${renderTvProgramGrid(groups)}${renderTvContinueWatching(groups)}${renderTvRows(groups)}<div class="section" style="padding:0;margin-top:1.5rem;"><div class="section-title">Tutti i video TV <span>A-Z</span></div><div class="video-grid">${allVideos.map(v=>buildVideoCard(tvNormalizeItem(v))).join('')}</div></div>`;
   const search=document.getElementById('tv-search');if(search){const len=search.value.length;search.focus();search.setSelectionRange(len,len);}
 }
 function ensureTvDetailOverlay(){let el=document.getElementById('tv-detail-overlay');if(!el){el=document.createElement('div');el.id='tv-detail-overlay';el.className='tv-detail-overlay';document.body.appendChild(el);}return el;}

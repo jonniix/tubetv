@@ -1808,9 +1808,8 @@ nav { z-index:800 !important; }
   display: grid !important;
 }
 
+#iptv-overlay{display:none!important}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js" defer></script>
 </head>
 <body>
 
@@ -5716,12 +5715,11 @@ function getAllTvVideos(groups){
 function renderTV(){
   const root=document.getElementById('tv-content');
   if(!root)return;
-  const iptvEntry=renderIptvEntryCard();
   const groups=getTvFilteredGroups();
   const queryValue=document.getElementById('tv-search')?.value||'';
-  if(!groups.length){root.innerHTML=iptvEntry+`<input id="tv-search" class="tv-search" placeholder="Cerca programmi TV, episodi o canali..." value="${escapeHtml(queryValue)}" oninput="renderTV()"><p class="empty" style="color:var(--muted);padding:2rem 0;">Nessun contenuto TV disponibile.</p>`;return;}
+  if(!groups.length){root.innerHTML=`<input id="tv-search" class="tv-search" placeholder="Cerca programmi TV, episodi o canali..." value="${escapeHtml(queryValue)}" oninput="renderTV()"><p class="empty" style="color:var(--muted);padding:2rem 0;">Nessun contenuto TV disponibile.</p>`;return;}
   const allVideos=getAllTvVideos(groups);
-  root.innerHTML=iptvEntry+`<input id="tv-search" class="tv-search" placeholder="Cerca programmi TV, episodi o canali..." value="${escapeHtml(queryValue)}" oninput="renderTV()">${renderTvProgramGrid(groups)}${renderTvContinueWatching(groups)}${renderTvRows(groups)}<section class="section" style="padding:0;margin-top:2rem;"><h2 class="section-title">Tutti i video TV <span>A-Z</span></h2><div class="video-grid">${allVideos.map(v=>buildVideoCard(tvNormalizeItem(v),{sourceType:'tv'})).join('')}</div></section>`;
+  root.innerHTML=`<input id="tv-search" class="tv-search" placeholder="Cerca programmi TV, episodi o canali..." value="${escapeHtml(queryValue)}" oninput="renderTV()">${renderTvProgramGrid(groups)}${renderTvContinueWatching(groups)}${renderTvRows(groups)}<section class="section" style="padding:0;margin-top:2rem;"><h2 class="section-title">Tutti i video TV <span>A-Z</span></h2><div class="video-grid">${allVideos.map(v=>buildVideoCard(tvNormalizeItem(v),{sourceType:'tv'})).join('')}</div></section>`;
   const search=document.getElementById('tv-search');if(search){const len=search.value.length;search.focus();search.setSelectionRange(len,len);}
 }
 function ensureTvDetailOverlay(){
@@ -9048,7 +9046,7 @@ body.tv-device-mode :focus{outline:4px solid #ffb703!important;outline-offset:3p
   async function openRemoteIptv(payload){const channel=payload?.channel,session=String(payload?.session||'');if(!channel||!session)return;await switchView('tv');IPTV_STATE.session=session;IPTV_STATE.catalogSession=session;IPTV_STATE.channels=[channel];IPTV_STATE.groups=[channel.group||'TV'];IPTV_STATE.section=iptvContentType(channel);IPTV_STATE.group='Tutti';document.getElementById('iptv-overlay')?.classList.add('open');showIptvCatalogView();renderIptvGroups();renderIptvChannels();setTimeout(()=>playIptvChannel(channel.id),80)}
   window.addEventListener('message', event => {
     if(event.origin!==location.origin||event.data?.type!=='tubetv-remote')return;const command=String(event.data.command||'');
-    if(command==='HOME')switchView('home');else if(command==='TV'){switchView('tv');setTimeout(openIptvCatalog,120)}else if(command==='LIVE')switchView('live');else if(command==='OPEN_IPTV')openRemoteIptv(event.data.payload||{});else if(command==='PLAY_PAUSE')playPause();else if(command==='VOLUME_UP')volume(.1);else if(command==='VOLUME_DOWN')volume(-.1);else if(['UP','DOWN','LEFT','RIGHT'].includes(command))move(command);else if(command==='OK')document.activeElement?.click?.();else if(command==='BACK'){if(document.getElementById('iptv-overlay')?.classList.contains('open'))closeIptvCatalog();else if(document.getElementById('player-modal')?.classList.contains('open'))closePlayerModal();else switchView('home')}
+    if(command==='HOME')switchView('home');else if(command==='TV')switchView('tv');else if(command==='LIVE')switchView('live');else if(command==='PLAY_PAUSE')playPause();else if(command==='VOLUME_UP')volume(.1);else if(command==='VOLUME_DOWN')volume(-.1);else if(['UP','DOWN','LEFT','RIGHT'].includes(command))move(command);else if(command==='OK')document.activeElement?.click?.();else if(command==='BACK'){if(document.getElementById('player-modal')?.classList.contains('open'))closePlayerModal();else switchView('home')}
   });
   window.addEventListener('load',()=>{if(new URLSearchParams(location.search).get('view')==='live')switchView('live')},{once:true});
 })();
