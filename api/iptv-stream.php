@@ -540,8 +540,13 @@ if ($looksLikePlaylist) {
     // playlist still advances normally, with about ten seconds of safe delay.
     if (!$isVod && str_contains((string)$body, '#EXTINF:') && !str_contains((string)$body, '#EXT-X-STREAM-INF:')) {
         $viewerCount = iptv_active_live_viewers();
-        $targetDelay = min(120, max(0, ($viewerCount - 1) * 20));
-        $queue = $targetDelay > 0 ? iptv_queue_live_prefetch($url, $sourceMedia, $streamMeta, $viewerCount, $targetDelay) : [];
+        // Keep the live edge stable for the entire playback session. Native
+        // Apple HLS may use a different User-Agent for the media loader, so a
+        // single phone can briefly look like two viewers. Varying delay from
+        // that count removes already advertised segments and causes visible
+        // buffer oscillation. One safe segment is held back below for everyone.
+        $targetDelay = 0;
+        $queue = [];
         // Never replace a moving live playlist with an older cached window.
         // When the buffered window becomes ready (or temporarily incomplete),
         // its media sequence can move backwards and native Safari then stops
@@ -571,7 +576,18 @@ if ($looksLikePlaylist) {
         $userAgent = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
         $appleNativeHls = preg_match('/iPhone|iPad|iPod/i', $userAgent) === 1
             || (str_contains($userAgent, 'Macintosh') && str_contains($userAgent, 'Mobile/'));
-        if (!$appleNativeHls && !str_contains(implode("\n", $lines), '#EXT-X-START:')) {
+        $playlistText = implode("\n", $lines);
+        if ($appleNativeHls && !str_contains($playlistText, '#EXT-X-START:')) {
+            // Start from already published media instead of the fragile live
+            // edge. Playback still begins immediately, while roughly thirty
+            // seconds of ready video absorb mobile/Funnel upload jitter.
+            foreach ($lines as &$versionLine) {
+                if (preg_match('/^#EXT-X-VERSION:\d+/i', trim($versionLine))) { $versionLine = '#EXT-X-VERSION:6'; break; }
+            }
+            unset($versionLine);
+            array_splice($lines, 2, 0, ['#EXT-X-START:TIME-OFFSET=-30.0,PRECISE=NO']);
+            $effectiveDelay = max((int)($effectiveDelay ?? 0), 30);
+        } elseif (!$appleNativeHls && !str_contains($playlistText, '#EXT-X-START:')) {
             array_splice($lines, 1, 0, ['#EXT-X-START:TIME-OFFSET=-8.0,PRECISE=NO']);
         }
         // Never delay the playlist while downloading media. The previous

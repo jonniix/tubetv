@@ -3016,13 +3016,14 @@ playIptvChannel=function(id){
 
 // Live streams are often closed by the provider after a network hiccup. Keep
 // the same selected channel and recover it without requiring another tap.
-let _mobileIptvWatchdogTimer=0,_mobileIptvLastProgress=0,_mobileIptvLastTime=-1,_mobileIptvRecoveryAttempts=0,_mobileIptvRecoveryBusy=false,_mobileIptvStableSince=0;
+let _mobileIptvWatchdogTimer=0,_mobileIptvLastProgress=0,_mobileIptvLastTime=-1,_mobileIptvRecoveryAttempts=0,_mobileIptvRecoveryBusy=false,_mobileIptvStableSince=0,_mobileIptvNativeStarvedSince=0;
 function markMobileIptvProgress(){const video=document.getElementById('iptv-video');if(!video)return;const now=Date.now(),time=Number(video.currentTime)||0;if(time>_mobileIptvLastTime+.05){_mobileIptvLastTime=time;_mobileIptvLastProgress=now;if(!_mobileIptvStableSince)_mobileIptvStableSince=now;if(now-_mobileIptvStableSince>25000)_mobileIptvRecoveryAttempts=0;}}
 function recoverMobileIptvPlayback(reason){
   const id=String(IPTV_STATE.selectedId||''),video=document.getElementById('iptv-video'),status=document.getElementById('iptv-player-status');
   if(!id||!video||_mobileIptvRecoveryBusy||document.hidden)return;
   const selected=IPTV_STATE.channels.find(item=>String(item.id)===id),selectedFormat=String(selected?.format||'').toLowerCase();if(selected?.isVod||selectedFormat==='native'||selectedFormat==='transcode'||/film|movie|cinema|vod|serie|series|documentar/i.test(`${selected?.group||''} ${selected?.name||''}`))return;
   _mobileIptvRecoveryBusy=true;_mobileIptvRecoveryAttempts++;_mobileIptvStableSince=0;
+  _mobileIptvNativeStarvedSince=0;
   if(status)status.textContent=`Riconnessione automatica${_mobileIptvRecoveryAttempts>1?' · tentativo '+_mobileIptvRecoveryAttempts:''}…`;
   try{
     if(video.dataset.playbackMode==='native-hls'&&_mobileIptvRecoveryAttempts===1){
@@ -3040,21 +3041,22 @@ function recoverMobileIptvPlayback(reason){
 function startMobileIptvWatchdog(){
   const video=document.getElementById('iptv-video');if(!video||video.dataset.watchdog==='1')return;video.dataset.watchdog='1';
   _mobileIptvLastProgress=Date.now();
-  video.addEventListener('playing',()=>{_mobileIptvLastProgress=Date.now();_mobileIptvStableSince=Date.now()});
+  video.addEventListener('playing',()=>{_mobileIptvLastProgress=Date.now();_mobileIptvStableSince=Date.now();_mobileIptvNativeStarvedSince=0});
   video.addEventListener('timeupdate',markMobileIptvProgress);
   video.addEventListener('error',()=>setTimeout(()=>recoverMobileIptvPlayback('error'),1200));
   clearInterval(_mobileIptvWatchdogTimer);_mobileIptvWatchdogTimer=setInterval(()=>{
     if(!IPTV_STATE.selectedId||video.paused||document.hidden)return;
     markMobileIptvProgress();
-    const nativeStalled=video.dataset.playbackMode==='native-hls'&&Date.now()-_mobileIptvLastProgress>12000;
-    const engineStalled=video.dataset.playbackMode!=='native-hls'&&Date.now()-_mobileIptvLastProgress>14000;
+    const nativeMode=video.dataset.playbackMode==='native-hls';let nativeStalled=false;
+    if(nativeMode){let buffer=0;try{if(video.buffered?.length)buffer=Math.max(0,video.buffered.end(video.buffered.length-1)-video.currentTime)}catch(e){}const starved=video.readyState<3&&buffer<.5;if(starved){if(!_mobileIptvNativeStarvedSince)_mobileIptvNativeStarvedSince=Date.now();nativeStalled=Date.now()-_mobileIptvNativeStarvedSince>15000}else _mobileIptvNativeStarvedSince=0;}
+    const engineStalled=!nativeMode&&Date.now()-_mobileIptvLastProgress>14000;
     if(nativeStalled||engineStalled)recoverMobileIptvPlayback('stall');
   },3000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startMobileIptvWatchdog);else startMobileIptvWatchdog();
 const _playIptvChannelBase=playIptvChannel;window.playIptvChannel=async function(id,options={}){
   id=String(id);const channel=IPTV_STATE.channels.find(item=>String(item.id)===id);if(!channel)return;
-  if(!options.recovery){_mobileIptvLastProgress=Date.now();_mobileIptvLastTime=-1;_mobileIptvRecoveryAttempts=0;_mobileIptvRecoveryBusy=false;_mobileIptvStableSince=0;}
+  if(!options.recovery){_mobileIptvLastProgress=Date.now();_mobileIptvLastTime=-1;_mobileIptvRecoveryAttempts=0;_mobileIptvRecoveryBusy=false;_mobileIptvStableSince=0;_mobileIptvNativeStarvedSince=0;}
   const catalogSession=IPTV_STATE.catalogSession||IPTV_STATE.session;IPTV_STATE.pendingId=id;IPTV_STATE.selectedId=id;IPTV_STATE.recent=[id,...IPTV_STATE.recent.filter(item=>item!==id)].slice(0,30);saveMobileIptvPreferences();
   closeMobileIptvMenu();syncMobileIptvPlayerVisibility();document.getElementById('iptv-player-title').textContent=channel.name||'Canale IPTV';document.getElementById('iptv-now-title').textContent=channel.name||'Canale IPTV';
   const status=document.getElementById('iptv-player-status'),empty=document.getElementById('iptv-empty-player');if(status)status.textContent='Preparazione rapida del canale…';if(empty){empty.style.display='grid';empty.innerHTML=`<div class="iptv-loading-card"><span class="iptv-loading-spinner"></span><strong>${esc(channel.name||'Canale IPTV')}</strong><small>Collegamento sicuro al server…</small></div>`;}document.querySelector('.iptv-main-stage')?.scrollIntoView({behavior:'auto',block:'start'});
