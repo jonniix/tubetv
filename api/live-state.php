@@ -48,7 +48,7 @@ $station = $secondary && is_array($data['webLiveChannels'][$stationId] ?? null)
     : [];
 $rewindQueueLength = $rewindStation ? max(0, (int)($station['eligibleVideoCount'] ?? 0)) : 0;
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'schedule-engine.php';
-if (!$secondary && function_exists('se_ensure_daily_schedule')) {
+if (!$secondary && (($data['activeScheduleEngine'] ?? '') !== 'bot-v4') && function_exists('se_ensure_daily_schedule')) {
     // Read-time fallback: a viewer still receives today's deterministic
     // timeline when the hosting cron has not regenerated it yet.
     se_ensure_daily_schedule($data, $now, false);
@@ -120,8 +120,8 @@ if ($projected) {
         'adState' => ['active' => false, 'startedAt' => null, 'durationSeconds' => 0],
         'serverNowAtPublish' => gmdate('Y-m-d\TH:i:s', $now) . '.000Z',
         'updatedAt' => gmdate('Y-m-d\TH:i:s', $now) . '.000Z',
-        'currentChangedBy' => 'bot-v3-projection',
-        'currentChangeReason' => 'wall_clock_read_projection',
+        'currentChangedBy' => !$secondary && (($data['activeScheduleEngine'] ?? '') === 'bot-v4') ? 'bot-v4' : 'bot-v3-projection',
+        'currentChangeReason' => !$secondary && (($data['activeScheduleEngine'] ?? '') === 'bot-v4') ? 'v4_official_read_projection' : 'wall_clock_read_projection',
         'projectedFromSchedule' => true,
         'personalSkip' => $personalSkip,
         'personalAnchor' => $personalAnchor,

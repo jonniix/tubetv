@@ -15,6 +15,9 @@ check(html.includes('function skipRewindVideo()') && html.includes("'&anchor='")
 check(html.includes('id="live-channel-bug"') && html.includes('live-web-1.svg?v=20260824-v4'), 'the refreshed Live Web 1 channel logo is missing');
 check(html.includes('id="live-program-badge-text"') && html.includes('function renderLiveEditorialOverlay(current)'), 'the V4 editorial live badge is missing');
 check(html.includes('PROSSIMA PREMIERE') && html.includes('nextRatedPremiere'), 'the next high-rated Premiere announcement is missing');
+const liveStatePhp=fs.readFileSync('api/live-state.php','utf8');
+check(liveStatePhp.includes("activeScheduleEngine'] ?? '') !== 'bot-v4'"), 'live-state can still overwrite the official V4 schedule with the V3 read fallback');
+check(liveStatePhp.includes("? 'bot-v4' : 'bot-v3-projection'"), 'live-state does not expose Bot V4 as the official authority');
 
 check(html.includes('function getLiveNowMs(){'), 'the server-aligned clock helper is missing');
 check(!html.includes('endAt - liveNowMs()'), 'the live boundary still calls the missing liveNowMs helper');
