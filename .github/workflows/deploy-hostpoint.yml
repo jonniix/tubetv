@@ -42,7 +42,7 @@ jobs:
           node tv-experience-tests.js
           while IFS= read -r -d '' file; do
             php -l "$file" >/dev/null
-          done < <(find api host/agent -type f -name '*.php' -print0)
+          done < <(find api -type f -name '*.php' -print0)
 
       - name: Prepara il collegamento SSH
         shell: bash
@@ -64,7 +64,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          rsync -az --checksum --itemize-changes \
+          rsync -az --checksum --delete-delay --delete-excluded --itemize-changes \
+            --filter='protect /.env' \
+            --filter='protect /data/***' \
+            --filter='protect /private/***' \
             --exclude='/.git/' \
             --exclude='/.github/' \
             --exclude='/.env' \
@@ -73,6 +76,11 @@ jobs:
             --exclude='/private/' \
             --exclude='/node_modules/' \
             --exclude='/host-kit/' \
+            --exclude='/host/' \
+            --exclude='/desktop-host/' \
+            --exclude='/desktop-worker/' \
+            --exclude='/assets/vendor/hls.light.min.js' \
+            --exclude='/assets/vendor/mpegts.js' \
             --exclude='/README.md' \
             --exclude='/package.json' \
             --exclude='/package-lock.json' \
@@ -83,5 +91,25 @@ jobs:
             -e "ssh -i $HOME/.ssh/hostpoint_deploy -p $HOSTPOINT_PORT" \
             ./ "${HOSTPOINT_USER}@${HOSTPOINT_HOST}:${HOSTPOINT_PATH%/}/"
 
+      - name: Rimuovi i dati privati IPTV dismessi
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          REMOTE_ROOT="${HOSTPOINT_PATH%/}"
+          case "$REMOTE_ROOT" in ''|'/'|'.') echo 'Percorso Hostpoint non sicuro'; exit 1;; esac
+          ssh -i "$HOME/.ssh/hostpoint_deploy" -p "$HOSTPOINT_PORT" "${HOSTPOINT_USER}@${HOSTPOINT_HOST}" \
+            "cd -- '$REMOTE_ROOT' && test \"\$(pwd -P)\" != / && rm -rf -- \
+              private/iptv-config.json \
+              private/iptv-devices.json \
+              private/iptv-rate-limit.json \
+              private/iptv-host-secret \
+              private/adaptive-takeover.json \
+              private/iptv-sessions \
+              private/iptv-logo-cache \
+              private/iptv-segment-cache \
+              private/iptv-playlist-cache \
+              private/iptv-prefetch-queue \
+              private/iptv-activity"
+
       - name: Riepilogo
-        run: echo "TubeTV pubblicato su Hostpoint senza modificare data/, private/ o .env."
+        run: echo "TubeTV pubblicato su Hostpoint; data/, account e .env preservati, residui IPTV eliminati."

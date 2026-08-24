@@ -33,16 +33,13 @@ if ($action === 'resolve') {
     auth_json_response(['ok' => false, 'error' => 'PAIR_INVALID_OR_EXPIRED'], 404);
 }
 if ($action === 'claim') {
-    $user = auth_require_user(); $pairId = trim((string)($input['pairId'] ?? '')); $code = trim((string)($input['code'] ?? '')); $mobileId = iptv_clean_device_id((string)($input['mobileDeviceId'] ?? ''));
-    $trustedId = iptv_device_record_id((string)$user['id'], $mobileId);
-    if ($mobileId === '' || !iptv_device_approved($trustedId, (string)$user['id'])) auth_json_response(['ok' => false, 'error' => 'TRUSTED_DEVICE_REQUIRED'], 403);
+    $user = auth_require_user(); $pairId = trim((string)($input['pairId'] ?? '')); $code = trim((string)($input['code'] ?? ''));
     $pairings = tv_active_pairings(); $index = tv_find_pair($pairings, $pairId);
     if ($index < 0 || (int)$pairings[$index]['expiresAt'] < time() || (string)($pairings[$index]['status'] ?? '') !== 'pending' || !password_verify($code, (string)$pairings[$index]['codeHash'])) auth_json_response(['ok' => false, 'error' => 'PAIR_INVALID_OR_EXPIRED'], 404);
     $tvToken = tv_random_hex(32); $tvId = tv_random_hex(16); $now = gmdate('c');
     $devices = array_values(array_filter(tv_read_file(tv_devices_path()), fn($item) => !((string)($item['userId'] ?? '') === (string)$user['id'] && (string)($item['deviceId'] ?? '') === (string)$pairings[$index]['deviceId'])));
     $devices[] = ['id' => $tvId, 'userId' => (string)$user['id'], 'name' => (string)$pairings[$index]['deviceName'], 'deviceId' => (string)$pairings[$index]['deviceId'], 'tokenHash' => hash('sha256', $tvToken), 'status' => 'active', 'createdAt' => $now, 'lastSeenAt' => $now, 'lastSeenUnix' => time(), 'commandSeq' => 0, 'commands' => []];
     tv_write_file(tv_devices_path(), $devices);
-    $iptvRecord = iptv_register_device((string)$user['id'], (string)$pairings[$index]['deviceId'], (string)$pairings[$index]['deviceName']); iptv_set_device_status((string)$iptvRecord['id'], 'approved');
     $pairings[$index]['status'] = 'paired'; $pairings[$index]['userId'] = (string)$user['id']; $pairings[$index]['tvDeviceId'] = $tvId; $pairings[$index]['tvToken'] = $tvToken; $pairings[$index]['pairedAt'] = $now; $pairings[$index]['expiresAt'] = time() + 600;
     tv_write_file(tv_pairings_path(), $pairings); auth_json_response(['ok' => true, 'device' => tv_public_device($devices[array_key_last($devices)])]);
 }

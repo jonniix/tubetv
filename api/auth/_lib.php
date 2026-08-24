@@ -177,9 +177,7 @@ function auth_default_preferences(): array {
         'language' => 'it',
         'subtitlesDefault' => false,
         'autoplay' => true,
-        'theme' => 'system',
-        'iptvFavorites' => [],
-        'iptvRecent' => []
+        'theme' => 'system'
     ];
 }
 

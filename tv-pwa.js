@@ -15,5 +15,5 @@
   document.addEventListener('visibilitychange',keepScreenAwake);
   document.addEventListener('pointerdown',keepScreenAwake,{once:true});
   document.addEventListener('keydown',keepScreenAwake,{once:true});
-  document.addEventListener('DOMContentLoaded',function(){buttons=Array.prototype.slice.call(document.querySelectorAll('[data-tv-install]'));buttons.forEach(function(button){button.addEventListener('click',promptInstall)});update();keepScreenAwake();if('serviceWorker'in navigator)navigator.serviceWorker.register('./tv-sw.js?v=3',{scope:'./'}).then(function(reg){try{reg.update()}catch(e){}}).catch(function(){})});
+  document.addEventListener('DOMContentLoaded',function(){buttons=Array.prototype.slice.call(document.querySelectorAll('[data-tv-install]'));buttons.forEach(function(button){button.addEventListener('click',promptInstall)});update();keepScreenAwake();if('serviceWorker'in navigator)navigator.serviceWorker.register('./tv-sw.js?v=4',{scope:'./'}).then(function(reg){try{reg.update()}catch(e){}}).catch(function(){})});
 }());

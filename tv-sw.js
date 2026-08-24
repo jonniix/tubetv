@@ -1,4 +1,4 @@
-const TV_CACHE = 'tubetv-tv-shell-v3';
+const TV_CACHE = 'tubetv-tv-shell-v4';
 const TV_SHELL = [
   './tv.html',
   './tv-lite.html',
@@ -6,9 +6,7 @@ const TV_SHELL = [
   './tv-pwa.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './assets/vendor/qrcode.min.js',
-  './assets/vendor/hls.light.min.js',
-  './assets/vendor/mpegts.js'
+  './assets/vendor/qrcode.min.js'
 ];
 
 self.addEventListener('install', event => {

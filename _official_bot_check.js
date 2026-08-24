@@ -16,7 +16,6 @@ function checkInlineScripts(file) {
 const admin = fs.readFileSync('admin.html', 'utf8');
 const index = fs.readFileSync('index.html', 'utf8');
 const saveData = fs.readFileSync('api/save-data.php', 'utf8');
-const iptvLib = fs.readFileSync('api/iptv-lib.php', 'utf8');
 const botV3 = fs.readFileSync('api/bot-v3.php', 'utf8');
 const botV3Engine = fs.readFileSync('api/bot-v3-engine.php', 'utf8');
 const multiLive = fs.readFileSync('api/multilive-engine.php', 'utf8');
@@ -42,12 +41,11 @@ check(index.includes('hiddenByAvailabilityBot'), 'Catalogo pubblico non filtra i
 check(index.includes('enforceLiveItalianAudio') && index.includes('setYoutubeAudioTrackSafe'), 'Live Web non forza la traccia italiana verificata');
 check(index.includes("api/bot-v3.php?action=tick"), 'Recovery Live non collegato al bot ufficiale');
 check(saveData.includes("fail_json('ADMIN_TOKEN_NOT_CONFIGURED', 503)"), 'save-data non nega le scritture quando manca il token Admin');
-check(iptvLib.includes("'ADMIN_TOKEN_NOT_CONFIGURED'], 503"), 'IPTV Admin non nega l’accesso quando manca il token');
 check(botV3.includes("if ($token === '') return false;"), 'Bot V3 accetta ancora mutazioni senza token');
 check(admin.includes('configureAdminToken()') && admin.includes('admin-security-token-btn'), 'Admin non offre la configurazione locale del token');
 check(admin.includes('ch-web-live-list') && admin.includes('webLiveIds'), 'Assegnazione sorgenti ai canali Live Web secondari assente');
 check(admin.includes('toggleChannelWebLive') && admin.includes('persistChannelWebLiveOnline') && admin.includes('api/web-live-assign.php'), 'Salvataggio rapido online delle assegnazioni Live assente');
-const quickAssignBody = admin.match(/async function toggleChannelWebLive[\s\S]*?\n}\n\nasync function addChannel/)?.[0] || '';
+const quickAssignBody = admin.match(/async function toggleChannelWebLive[\s\S]*?\r?\n}\r?\n\r?\nasync function addChannel/)?.[0] || '';
 check(quickAssignBody.includes("save('channels',DB.channels)") && !quickAssignBody.includes('saveAll()'), 'Assegnazione rapida risalva ancora tutto il catalogo locale');
 check(webLiveAssign.includes('wla_write_assignment') && webLiveAssignmentsLib.includes('.web-live-assignments.lock') && webLiveAssignmentsLib.includes("$channel['webLiveIds'] = $assignments[$channelId]") && botV3.includes('wla_apply_assignments($data)'), 'Persistenza rapida privata o applicazione delle assegnazioni nel bot assente');
 check(admin.includes('id="admin-login-gate"') && admin.includes('bootAdminAccess') && admin.includes('api/admin-login.php'), 'Cancello di accesso Admin assente');

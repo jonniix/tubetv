@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/auth/_lib.php';
-require_once __DIR__ . '/iptv-lib.php';
 
 function tv_pairings_path(): string { $custom = trim((string)getenv('TUBETV_TV_PAIRINGS_PATH')); return $custom !== '' ? $custom : auth_private_dir() . DIRECTORY_SEPARATOR . 'tv-pairings.json'; }
 function tv_devices_path(): string { $custom = trim((string)getenv('TUBETV_TV_DEVICES_PATH')); return $custom !== '' ? $custom : auth_private_dir() . DIRECTORY_SEPARATOR . 'tv-devices.json'; }
@@ -21,5 +20,5 @@ function tv_clean_name(string $value): string { $value = trim(preg_replace('/[^\
 function tv_active_pairings(): array { $now = time(); return array_values(array_filter(tv_read_file(tv_pairings_path()), fn($item) => (int)($item['expiresAt'] ?? 0) > $now)); }
 function tv_find_pair(array $items, string $id): int { foreach ($items as $i => $item) if ((string)($item['id'] ?? '') === $id) return (int)$i; return -1; }
 function tv_find_device(array $items, string $id): int { foreach ($items as $i => $item) if ((string)($item['id'] ?? '') === $id) return (int)$i; return -1; }
-function tv_device_trusted(array $device): bool { $userId = (string)($device['userId'] ?? ''); $browserId = (string)($device['deviceId'] ?? ''); return $userId !== '' && $browserId !== '' && iptv_device_approved(iptv_device_record_id($userId, $browserId), $userId); }
+function tv_device_trusted(array $device): bool { return (string)($device['userId'] ?? '') !== '' && (string)($device['status'] ?? '') === 'active'; }
 function tv_public_device(array $device): array { return ['id' => (string)$device['id'], 'name' => (string)$device['name'], 'status' => (string)$device['status'], 'createdAt' => (string)$device['createdAt'], 'lastSeenAt' => (string)($device['lastSeenAt'] ?? ''), 'online' => (int)($device['lastSeenUnix'] ?? 0) > time() - 15]; }

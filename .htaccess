@@ -28,9 +28,5 @@
   RewriteRule ^data/(?:live-presence\.json|.*\.bak|\.bot.*|.*\.lock|.*\.tmp)$ - [F,L,NC]
 
   RewriteRule ^tv/?$ tv.html [L,NC]
-  # La vecchia area IPTV privata e tutti i relativi endpoint sono dismessi.
-  RewriteRule ^iptv(?:\.html|/)?$ / [R=302,L,NC]
-  RewriteRule ^api/(?:_iptv-host-auth|iptv-[^/]+|tv-lite-iptv|tv-remote-catalog)\.php$ - [G,L,NC]
-  RewriteRule ^host(?:/|$) - [G,L,NC]
   RewriteRule ^tv-connect/?$ tv-connect.html [L,NC]
 </IfModule>
