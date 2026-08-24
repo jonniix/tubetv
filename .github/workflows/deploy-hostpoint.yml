@@ -36,6 +36,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           php schedule-engine-tests.php
+          php bot-v4-tests.php
           php multilive-tests.php
           node _official_bot_check.js
           node live-ui-tests.js

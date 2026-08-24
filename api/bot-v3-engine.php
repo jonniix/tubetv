@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/schedule-engine.php';
 require_once __DIR__ . '/multilive-engine.php';
+require_once __DIR__ . '/bot-v4-engine.php';
 
 if (!function_exists('v3_tick')) {
     function v3_compact_item(array $item): array {
@@ -345,9 +346,12 @@ if (!function_exists('v3_tick')) {
         // Pubblica i canali lineari secondari dopo aver congelato la terna
         // ufficiale della Live principale, mantenendo i due motori isolati.
         $webLiveChannels = ml_tick_all($data, $now);
+        // V4 osserva lo stesso catalogo aggiornato dal cron, ma scrive soltanto
+        // campi botV4*: nessuna coda o voce ufficiale viene sostituita.
+        $botV4Shadow = v4_shadow_tick($data, $now, $trigger);
         $data['version'] = (string)((int)round(microtime(true) * 1000));
         $data['lastBotPublishAt'] = se_iso($now);
-        return ['ok' => $currentId !== '', 'changed' => $changed, 'rebuilt' => $rebuilt, 'futureRebuilt' => $futureRebuilt, 'catalogSync' => $catalogSync, 'audioVerification' => $audioVerification, 'webLiveChannels' => $webLiveChannels, 'state' => $state, 'current' => $currentId !== '' ? v3_compact_item($current) : null, 'queue' => $queue];
+        return ['ok' => $currentId !== '', 'changed' => $changed, 'rebuilt' => $rebuilt, 'futureRebuilt' => $futureRebuilt, 'catalogSync' => $catalogSync, 'audioVerification' => $audioVerification, 'webLiveChannels' => $webLiveChannels, 'botV4Shadow' => $botV4Shadow, 'state' => $state, 'current' => $currentId !== '' ? v3_compact_item($current) : null, 'queue' => $queue];
     }
 
     function v3_status(array $data, int $now): array {

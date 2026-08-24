@@ -596,6 +596,10 @@ label:has(#bot-auto-toggle){
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M8 9h8M8 13h5M8 17h8"/></svg>
           Bot Palinsesto
         </button>
+        <button class="sidebar-btn" onclick="switchAdmin('bot-v4',this)">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+          Bot V4 · Simulazione
+        </button>
         <button class="sidebar-btn" onclick="switchAdmin('spots',this)">
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
           Spot Pubblicitari
@@ -1496,6 +1500,38 @@ label:has(#bot-auto-toggle){
           <h3>Diagnostica</h3>
           <pre id="bot-v3-diagnostics" style="white-space:pre-wrap;max-height:340px;overflow:auto;padding:1rem;border:1px solid var(--border);border-radius:8px;background:#080b11;color:#b9c4d2;font-size:.75rem;">—</pre>
         </div>
+      </div>
+
+      <!-- BOT V4 SHADOW -->
+      <div class="admin-panel" id="panel-bot-v4">
+        <div class="admin-header">
+          <h2>Bot V4 · Simulazione Live Web 1</h2>
+          <p>Confronta la nuova logica con il motore ufficiale senza cambiare ciò che va in onda.</p>
+        </div>
+        <div class="admin-card" style="border-color:#7c3aed;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+            <div><span class="badge badge-purple">SHADOW · NON VA IN ONDA</span><h3 style="margin:.65rem 0 .25rem;">Anteprima indipendente del Bot V4</h3><div id="bot-v4-summary" style="color:var(--muted);font-size:.82rem;">In attesa del primo tick del cron…</div></div>
+            <button class="btn-warning" onclick="refreshBotV4()">Aggiorna simulazione</button>
+          </div>
+          <div class="stats-grid" id="bot-v4-stats" style="margin-top:1rem;"></div>
+        </div>
+        <div class="admin-card">
+          <h3>Regole confermate</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:.5rem;font-size:.76rem;">
+            <span class="badge badge-green">PREMIERE = primo passaggio</span>
+            <span class="badge badge-green">NOVITÀ = massimo 3 passaggi / 72h</span>
+            <span class="badge badge-purple">ARCHIVIO = ultimi 2 anni</span>
+            <span class="badge badge-purple">CURSORE GLOBALE · vecchio → recente</span>
+            <span class="badge badge-yellow">DOMENICA 18:00 · repliche per punteggio</span>
+            <span class="badge">BADGE PLAYER · 15 secondi</span>
+          </div>
+          <p style="font-size:.78rem;color:var(--muted);margin:.8rem 0 0;">Il blocco domenicale aspetta la fine naturale del programma, mostra “Momento Replica” per 7 secondi e prosegue finché ha trasmesso tutte le uscite settimanali idonee.</p>
+        </div>
+        <div class="admin-card">
+          <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;flex-wrap:wrap;"><div><h3 style="margin:0;">Palinsesto V4 previsto · prossime 72 ore</h3><p style="font-size:.78rem;color:var(--muted);margin:.35rem 0 0;">Ogni riga mostra classificazione, punteggio e motivo della scelta.</p></div><div id="bot-v4-cursor" style="font-size:.76rem;color:var(--muted);"></div></div>
+          <div id="bot-v4-schedule" style="margin-top:.9rem;max-height:680px;overflow:auto;border:1px solid var(--border);border-radius:10px;background:#080b11;"></div>
+        </div>
+        <div class="admin-card"><h3>Diagnostica V4</h3><pre id="bot-v4-diagnostics" style="white-space:pre-wrap;max-height:320px;overflow:auto;padding:1rem;border:1px solid var(--border);border-radius:8px;background:#080b11;color:#b9c4d2;font-size:.75rem;">—</pre></div>
       </div>
 
       <!-- SPOT -->
@@ -9403,6 +9439,37 @@ async function botV3Action(action){
 function resetBotV3(){if(confirm('Ripartire da zero con il Bot Palinsesto? Verranno cancellati solo stato e decisioni del motore. Account, canali, cataloghi e palinsesto non saranno eliminati.'))botV3Action('reset')}
 function setBotV3Refresh(active){clearInterval(_botV3Timer);_botV3Timer=null;if(active){refreshBotV3();_botV3Timer=setInterval(refreshBotV3,15000)}}
 
+let _botV4Timer=null;
+function botV4Badge(item){
+  const type=String(item?.classification||'').toUpperCase();
+  const cls=type==='PREMIERE'||type==='NOVITA'?'badge-green':(type==='REPLICA'||type==='REPLICA_INTRO'?'badge-yellow':'badge-purple');
+  return `<span class="badge ${cls}">${escapeHtml(item?.displayBadge||type||'V4')}</span>`;
+}
+async function refreshBotV4(){
+  const summary=document.getElementById('bot-v4-summary');if(summary)summary.textContent='Aggiornamento simulazione…';
+  try{
+    const response=await fetch('./api/bot-v4.php?action=status&ts='+Date.now(),{cache:'no-store'});
+    const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||('HTTP '+response.status));
+    const state=data.state||{},meta=data.meta||{},items=Array.isArray(data.schedule)?data.schedule:[];
+    if(summary)summary.innerHTML=`<b style="color:#c4b5fd">${escapeHtml(state.status||'IN ATTESA')}</b> · ultimo tick ${escapeHtml(botV3Date(state.lastTickAt))} · ${escapeHtml(data.notice||'')}`;
+    const stats=document.getElementById('bot-v4-stats');if(stats)stats.innerHTML=[
+      botV3Card('Programmi previsti',meta.items||0),botV3Card('Video unici',meta.uniqueVideos||0),
+      botV3Card('Premiere',meta.premieres||0,'#34d399'),botV3Card('Novità',meta.novita||0,'#22d3ee'),
+      botV3Card('Archivio',meta.archive||0,'#a78bfa'),botV3Card('Repliche domenicali',meta.replicas||0,'#fbbf24'),
+      botV3Card('Passaggi bloccati V3',meta.locked||0),botV3Card('Storico reale',meta.historyItems||data.historyCount||0)
+    ].join('');
+    const cursor=document.getElementById('bot-v4-cursor');if(cursor)cursor.innerHTML=`Archivio: <b>${Number(meta.archiveSize||0)}</b> video · cursore <b>${Number(meta.archiveCursorStart||0)} → ${Number(meta.archiveCursorEnd||0)}</b> · giro <b>${Number(meta.archiveCycle||0)}</b>`;
+    const box=document.getElementById('bot-v4-schedule');
+    if(box)box.innerHTML=items.length?items.map((item,index)=>{
+      const start=new Date(item.startDateTime),day=botV3FutureDayKey(item.startDateTime),previous=index?botV3FutureDayKey(items[index-1].startDateTime):'';
+      const header=day!==previous?`<div style="position:sticky;top:0;z-index:2;padding:.55rem .85rem;background:#111722;border-bottom:1px solid var(--border);font-weight:700;">${escapeHtml(start.toLocaleDateString('it-IT',{weekday:'long',day:'2-digit',month:'long'}))}</div>`:'';
+      return`${header}<article style="display:grid;grid-template-columns:68px minmax(0,1fr) auto;gap:.75rem;align-items:center;padding:.72rem .85rem;border-bottom:1px solid var(--border);"><b>${escapeHtml(start.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}))}</b><div><strong>${escapeHtml(item.title||'Momento Replica')}</strong><div style="font-size:.72rem;color:var(--muted);margin-top:.25rem;">${escapeHtml(item.channel||item.channelTitle||'TubeTV')} · ${escapeHtml(item.slotName||'')} · ${escapeHtml(item.reason||'')}</div></div><div style="text-align:right;">${botV4Badge(item)}<div style="font-size:.68rem;color:var(--muted);margin-top:.3rem;">score ${Number(item.finalScore||0).toFixed(0)}</div></div></article>`;
+    }).join(''):'<div style="padding:1rem;color:var(--muted);">Il primo tick ufficiale creerà la simulazione senza modificare la diretta.</div>';
+    const diagnostics=document.getElementById('bot-v4-diagnostics');if(diagnostics)diagnostics.textContent=JSON.stringify({serverNow:data.serverNow,state,meta},null,2);
+  }catch(error){if(summary)summary.innerHTML=`<span style="color:#f87171">Errore simulazione V4: ${escapeHtml(error.message)}</span>`;}
+}
+function setBotV4Refresh(active){clearInterval(_botV4Timer);_botV4Timer=null;if(active){refreshBotV4();_botV4Timer=setInterval(refreshBotV4,15000)}}
+
 function switchAdmin(p,btn){
   if(p==='generate' || p==='bot' || p==='bot-reasoning' || p==='live-bot-h24') p='bot-h24';
   document.querySelectorAll('.admin-panel').forEach(el=>el.classList.remove('active'));
@@ -9435,9 +9502,11 @@ function switchAdmin(p,btn){
   if(p==='ads'){renderAdsPanel();}
   if(p==='bot-h24'){renderBotStatus();renderBotReasoning();}
   if(p==='bot-v3'){refreshBotV3();}
+  if(p==='bot-v4'){refreshBotV4();}
   if(p==='live-tv-console'){renderLiveTvConsole();}
   setLiveTvConsoleRefreshActive(p==='live-tv-console');
   setBotV3Refresh(p==='bot-v3');
+  setBotV4Refresh(p==='bot-v4');
 }
 
 function renderTVTable(){
