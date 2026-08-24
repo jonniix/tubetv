@@ -15,6 +15,8 @@ check(html.includes('function skipRewindVideo()') && html.includes("'&anchor='")
 check(html.includes('id="live-channel-bug"') && html.includes('live-web-1.svg?v=20260824-v4'), 'the refreshed Live Web 1 channel logo is missing');
 check(html.includes('id="live-program-badge-text"') && html.includes('function renderLiveEditorialOverlay(current)'), 'the V4 editorial live badge is missing');
 check(html.includes('PROSSIMA PREMIERE') && html.includes('nextRatedPremiere'), 'the next high-rated Premiere announcement is missing');
+check(html.includes('id="live-replay-alert"') && html.includes('PROSSIMA REPLICA') && html.includes('nextReplay'), 'the next replay announcement is missing');
+check(html.includes("classification.replaceAll('_',' ')||'IN ONDA'"), 'the editorial badge must remain visible for the entire programme');
 const liveStatePhp=fs.readFileSync('api/live-state.php','utf8');
 check(liveStatePhp.includes("activeScheduleEngine'] ?? '') !== 'bot-v4'"), 'live-state can still overwrite the official V4 schedule with the V3 read fallback');
 check(liveStatePhp.includes("? 'bot-v4' : 'bot-v3-projection'"), 'live-state does not expose Bot V4 as the official authority');

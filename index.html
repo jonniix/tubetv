@@ -405,6 +405,8 @@ nav .nav-links button:hover, nav .nav-links button.active { color: var(--text); 
 .live-badge { display: inline-flex; align-items: center; gap: 7px; padding:0; border:0; background:none; color:#fff; font-size:.7rem; font-weight:900; letter-spacing:1.15px; text-transform:uppercase;text-shadow:0 2px 9px #000; }
 .live-premiere-alert{display:none;max-width:min(780px,88vw);padding:0;color:rgba(255,255,255,.9);font-size:.68rem;font-weight:750;letter-spacing:.35px;line-height:1.35;text-shadow:0 2px 9px #000}
 .live-premiere-alert.show{display:block}.live-premiere-alert strong{color:#ff5361;font-weight:950;letter-spacing:.8px}
+.live-replay-alert{display:none;max-width:min(780px,88vw);padding:0;color:rgba(255,255,255,.9);font-size:.68rem;font-weight:750;letter-spacing:.35px;line-height:1.35;text-shadow:0 2px 9px #000}
+.live-replay-alert.show{display:block}.live-replay-alert strong{color:#fbbf24;font-weight:950;letter-spacing:.8px}
 .live-clock { color: rgba(255,255,255,.76); font-size: .75rem; font-weight: 700; }
 .live-current-title { margin: 0; max-width: min(760px, 100%); font-size: clamp(1.5rem, 2.7vw, 2.4rem); line-height: 1.02; font-weight: 800; letter-spacing: -.03em; text-shadow: 0 10px 28px rgba(0,0,0,.4); }
 .live-current-meta { margin: 8px 0 0; color: rgba(255,255,255,.78); font-size: .86rem; font-weight: 600; }
@@ -1810,6 +1812,7 @@ nav { z-index:800 !important; }
                   <span class="live-clock" id="lco-clock">--:--</span>
                 </div>
                 <div class="live-premiere-alert" id="live-premiere-alert"></div>
+                <div class="live-replay-alert" id="live-replay-alert"></div>
               </div>
               <h2 class="live-current-title" id="live-current-title">In onda ora</h2>
               <p class="live-current-meta" id="live-current-meta"></p>
@@ -3528,17 +3531,22 @@ function setLiveText(title, meta, nextText){
 function renderLiveEditorialOverlay(current){
   const badgeText=document.getElementById('live-program-badge-text');
   const alert=document.getElementById('live-premiere-alert');
+  const replayAlert=document.getElementById('live-replay-alert');
   const classification=String(current?.displayBadge||current?.classification||DB.liveState?.displayBadge||DB.liveState?.classification||'').trim().toUpperCase();
-  const started=new Date(current?.actualStartDateTime||current?.startDateTime||DB.liveState?.currentStartedAt||0).getTime();
-  const elapsed=Number.isFinite(started)?Math.max(0,(getLiveNowMs()-started)/1000):999;
-  const duration=Math.max(1,Number(current?.badgeDurationSeconds||DB.liveState?.badgeDurationSeconds||15));
-  if(badgeText)badgeText.textContent=classification&&elapsed<=duration?`IN ONDA · ${classification}`:'IN ONDA';
+  if(badgeText)badgeText.textContent=classification.replaceAll('_',' ')||'IN ONDA';
   const premiere=DB.liveState?.nextRatedPremiere||DB.publicLiveSchedule?.nextRatedPremiere||null;
   if(alert){
     const at=new Date(premiere?.startDateTime||0);
     const valid=activeWebLiveId==='main'&&premiere&&Number(premiere.rating||0)>=8&&Number.isFinite(at.getTime())&&at.getTime()>getLiveNowMs();
     alert.classList.toggle('show',!!valid);
     alert.innerHTML=valid?`<strong>PROSSIMA PREMIERE</strong> · ${escapeHtmlSafe(premiere.channel||'TubeTV')} · ${escapeHtmlSafe(premiere.title||'Video')} · ORE ${escapeHtmlSafe(at.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}))}`:'';
+  }
+  const replay=DB.liveState?.nextReplay||DB.publicLiveSchedule?.nextReplay||null;
+  if(replayAlert){
+    const at=new Date(replay?.startDateTime||0);
+    const valid=activeWebLiveId==='main'&&replay&&Number.isFinite(at.getTime())&&at.getTime()>getLiveNowMs();
+    replayAlert.classList.toggle('show',!!valid);
+    replayAlert.innerHTML=valid?`<strong>PROSSIMA REPLICA</strong> · ${escapeHtmlSafe(at.toLocaleDateString('it-IT',{weekday:'short',day:'2-digit',month:'2-digit'}))} · ORE ${escapeHtmlSafe(at.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}))}`:'';
   }
 }
 

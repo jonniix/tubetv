@@ -39,8 +39,9 @@ $fresh = array_values(array_filter($built['schedule'], static fn($item): bool =>
 v4t_assert(count($fresh) === 3, 'A fresh video must have exactly three eligible passes in the test horizon.');
 v4t_assert(($fresh[0]['classification'] ?? '') === 'PREMIERE', 'First fresh airing must be PREMIERE.');
 v4t_assert(($fresh[1]['classification'] ?? '') === 'NOVITA' && ($fresh[2]['classification'] ?? '') === 'NOVITA', 'Second and third fresh airings must be NOVITA.');
-$archiveItems = array_values(array_filter($built['schedule'], static fn($item): bool => ($item['classification'] ?? '') === 'ARCHIVIO'));
+$archiveItems = array_values(array_filter($built['schedule'], static fn($item): bool => ($item['strategy'] ?? '') === 'v4_archivio'));
 v4t_assert(se_video_id($archiveItems[0] ?? []) === 'archive-oldest', 'Archive must start from the oldest eligible item.');
+v4t_assert(($archiveItems[0]['classification'] ?? '') === 'PRIMA_TV', 'An older video never aired by TubeTV must be labelled PRIMA_TV.');
 v4t_assert($built['cursorEnd'] !== $built['cursorStart'] || $built['archiveCycle'] > 0, 'Global archive cursor must advance.');
 
 // Official mode publishes V4 as the only authority for Live Web 1.
@@ -51,6 +52,8 @@ v4t_assert(($officialData['activeScheduleEngine'] ?? '') === 'bot-v4', 'V4 must 
 v4t_assert((int)($officialData['publicLiveSchedule']['engineVersion'] ?? 0) === 4, 'Public Live Web 1 queue must declare engine V4.');
 v4t_assert(($officialData['liveState']['currentChangedBy'] ?? '') === 'bot-v4', 'Live authority must be Bot V4.');
 v4t_assert(count($officialData['publicLiveSchedule']['liveQueue'] ?? []) === 3, 'Official V4 must publish the locked three-item queue.');
+$nextReplay = v4_next_replay($built['schedule'], 0, $now);
+v4t_assert(($nextReplay['videoId'] ?? '') === 'fresh', 'The engine must expose the next scheduled airing of the current video.');
 
 // Actual history is deduplicated and future entries are never counted as aired.
 $historyData = $data;
@@ -63,6 +66,8 @@ $historyData['schedule'] = [[
 ]];
 $history = v4_rebuild_history($historyData, $now);
 v4t_assert(count($history) === 1 && se_video_id($history[0]) === 'archive-oldest', 'History must contain only completed real airings.');
+v4t_assert(v4_editorial_classification(v4t_video('old', '2025-01-01T10:00:00Z'), $now, 1) === 'REPLICA', 'An older video already aired must be labelled REPLICA.');
+v4t_assert(v4_editorial_classification(v4t_video('old-new', '2025-01-01T10:00:00Z'), $now, 0) === 'PRIMA_TV', 'An older video never aired must be labelled PRIMA_TV.');
 
 // Sunday replay waits for the running programme, shows a 7-second slate, then replays.
 $sundayNow = strtotime('2026-08-23T15:50:00Z'); // 17:50 Europe/Zurich

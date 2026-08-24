@@ -155,5 +155,6 @@ echo json_encode([
         'liveQueue' => $queue,
         'engineVersion' => (int)($data['publicLiveSchedule']['engineVersion'] ?? 3),
         'nextRatedPremiere' => $secondary ? null : ($data['publicLiveSchedule']['nextRatedPremiere'] ?? null),
+        'nextReplay' => $secondary ? null : ($data['publicLiveSchedule']['nextReplay'] ?? null),
     ],
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
