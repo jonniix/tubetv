@@ -19,7 +19,14 @@ if (!function_exists('ml_definitions')) {
             'docu'  => ['id' => 'docu',  'name' => 'Live Docu & Lifestyle', 'shortName' => 'Docu & Lifestyle'],
             'cucina' => ['id' => 'cucina', 'name' => 'Live Cucina', 'shortName' => 'Live Cucina'],
             'girl' => ['id' => 'girl', 'name' => 'Live Girl', 'shortName' => 'Live Girl'],
+            'rewind24' => ['id' => 'rewind24', 'name' => 'Rewind 24h', 'shortName' => 'Rewind 24h', 'type' => 'rewind', 'windowHours' => 24],
+            'rewind7' => ['id' => 'rewind7', 'name' => 'Rewind 7', 'shortName' => 'Rewind 7 giorni', 'type' => 'rewind', 'windowHours' => 168],
+            'rewind30' => ['id' => 'rewind30', 'name' => 'Rewind 30', 'shortName' => 'Rewind 30 giorni', 'type' => 'rewind', 'windowHours' => 720],
         ];
+    }
+
+    function ml_is_rewind(array $definition): bool {
+        return (string)($definition['type'] ?? '') === 'rewind';
     }
 
     function ml_channel_assigned(array $channel, string $stationId): bool {
@@ -59,6 +66,31 @@ if (!function_exists('ml_definitions')) {
         }
         usort($pool, static fn(array $a, array $b): int =>
             (int)($b['_mlPublishedTs'] ?? 0) <=> (int)($a['_mlPublishedTs'] ?? 0)
+        );
+        return $pool;
+    }
+
+    function ml_rewind_pool(array $data, int $windowHours, int $now): array {
+        $minimumPublishedAt = $now - max(1, $windowHours) * 3600;
+        $pool = []; $seen = [];
+        foreach (se_active_channels($data) as $channel) {
+            if (!is_array($channel)) continue;
+            foreach (se_collect_videos($data) as $video) {
+                if (!is_array($video) || !se_video_matches_channel($video, $channel)) continue;
+                if (!se_is_playable($video, $channel, $data)) continue;
+                $videoId = se_video_id($video);
+                if ($videoId === '' || isset($seen[$videoId])) continue;
+                $published = se_ts((string)($video['publishedAt'] ?? $video['createdAt'] ?? ''));
+                if ($published <= 0 || $published < $minimumPublishedAt || $published > $now + 300) continue;
+                $seen[$videoId] = true;
+                $video['_mlPublishedTs'] = $published;
+                $video['_mlChannel'] = $channel;
+                $pool[] = $video;
+            }
+        }
+        usort($pool, static fn(array $a, array $b): int =>
+            ((int)($b['_mlPublishedTs'] ?? 0) <=> (int)($a['_mlPublishedTs'] ?? 0))
+            ?: strcmp(se_video_id($a), se_video_id($b))
         );
         return $pool;
     }
@@ -122,7 +154,81 @@ if (!function_exists('ml_definitions')) {
         ]);
     }
 
+    function ml_tick_rewind_station(array $data, array $definition, array $existing, int $now): array {
+        $stationId = (string)$definition['id'];
+        $windowHours = max(1, (int)($definition['windowHours'] ?? 24));
+        $history = array_values(array_filter(is_array($existing['history'] ?? null) ? $existing['history'] : [], 'is_array'));
+        $schedule = array_values(array_filter(is_array($existing['schedule'] ?? null) ? $existing['schedule'] : [], 'is_array'));
+        $recorded = array_fill_keys(array_map(static fn($h): string => (string)($h['scheduleId'] ?? ''), $history), true);
+        foreach ($schedule as $item) {
+            $end = se_ts((string)($item['endDateTime'] ?? ''));
+            $scheduleId = (string)($item['id'] ?? '');
+            if ($end > 0 && $end <= $now && $scheduleId !== '' && empty($recorded[$scheduleId])) {
+                array_unshift($history, ['scheduleId'=>$scheduleId,'videoId'=>se_video_id($item),'channelId'=>(string)($item['channelId']??''),'airedAt'=>(string)($item['startDateTime']??se_iso($end-se_duration($item)))]);
+                $recorded[$scheduleId] = true;
+            }
+        }
+        $history = array_slice($history, 0, 1200);
+        $schedule = array_values(array_filter($schedule, static fn(array $item): bool => se_ts((string)($item['endDateTime'] ?? '')) > $now));
+        usort($schedule, static fn(array $a, array $b): int => se_ts((string)($a['startDateTime'] ?? '')) <=> se_ts((string)($b['startDateTime'] ?? '')));
+
+        $pool = ml_rewind_pool($data, $windowHours, $now);
+        $poolSignature = hash('sha256', implode('|', array_map(static fn(array $video): string => se_video_id($video) . ':' . (string)($video['_mlPublishedTs'] ?? 0), $pool)));
+        $poolChanged = (int)($existing['engineVersion'] ?? 0) < 3 || (string)($existing['poolSignature'] ?? '') !== $poolSignature;
+        if ($poolChanged && $schedule) {
+            $onAir = [];
+            foreach ($schedule as $item) {
+                $start = se_ts((string)($item['startDateTime'] ?? '')); $end = se_ts((string)($item['endDateTime'] ?? ''));
+                if ($start <= $now && $now < $end) { $onAir = [$item]; break; }
+            }
+            $schedule = $onAir;
+        }
+
+        $cursor = $schedule ? se_ts((string)(end($schedule)['endDateTime'] ?? '')) : $now;
+        if ($cursor < $now) $cursor = $now;
+        $rewindCursor = $poolChanged ? 0 : max(0, (int)($existing['rewindCursor'] ?? 0));
+        $lastVideoId = $schedule ? se_video_id(end($schedule)) : '';
+        $horizon = $now + 24 * 3600; $guard = 0;
+        while ($pool && $cursor < $horizon && count($schedule) < 720 && $guard++ < 3000) {
+            $poolIndex = $rewindCursor % count($pool); $video = $pool[$poolIndex]; $rewindCursor++;
+            if (count($pool) > 1 && se_video_id($video) === $lastVideoId) continue;
+            $channel = is_array($video['_mlChannel'] ?? null) ? $video['_mlChannel'] : [];
+            $stats = ml_history_stats($history, se_video_id($video));
+            $item = ml_compact_video($video, $channel, $stationId, $cursor, ['promotion'=>false,'stats'=>$stats]);
+            $item['strategy'] = 'rewind_' . $windowHours . 'h';
+            $item['reason'] = 'Rotazione continua dei video pubblicati nelle ultime ' . $windowHours . ' ore';
+            $item['rewindWindowHours'] = $windowHours;
+            $item['isReplica'] = $stats['count'] > 0 || $rewindCursor > count($pool);
+            $schedule[] = $item; $lastVideoId = se_video_id($item); $cursor = se_ts((string)$item['endDateTime']);
+        }
+
+        $currentIndex = null;
+        foreach ($schedule as $index => $item) {
+            $start = se_ts((string)($item['startDateTime'] ?? '')); $end = se_ts((string)($item['endDateTime'] ?? ''));
+            if ($start <= $now && $now < $end) { $currentIndex = $index; break; }
+        }
+        $queue = $currentIndex === null ? [] : array_slice($schedule, $currentIndex, 3);
+        $current = $queue[0] ?? []; $start = se_ts((string)($current['startDateTime'] ?? '')); $duration = $current ? se_duration($current) : 0;
+        $state = $current ? [
+            'stationId'=>$stationId,'phase'=>'content','status'=>'playing','type'=>'video','mode'=>'REWIND',
+            'currentVideoId'=>se_video_id($current),'currentTitle'=>(string)($current['title']??''),'currentChannel'=>(string)($current['channel']??''),
+            'currentStartedAt'=>(string)($current['startDateTime']??''),'actualStartDateTime'=>(string)($current['startDateTime']??''),'currentEndsAt'=>(string)($current['endDateTime']??''),
+            'currentDurationSeconds'=>$duration,'offset'=>max(0,min(max(0,$duration-1),$now-$start)),'currentVideoOffset'=>max(0,min(max(0,$duration-1),$now-$start)),
+            'serverNowAtPublish'=>se_iso($now),'currentChangedBy'=>'bot-v3-rewind','currentChangeReason'=>$poolChanged?'rewind_pool_updated':'rewind_linear_projection',
+            'rewindWindowHours'=>$windowHours,
+        ] : ['stationId'=>$stationId,'status'=>$pool?'WAITING':'NO_RECENT_CONTENT','mode'=>'REWIND','rewindWindowHours'=>$windowHours,'serverNowAtPublish'=>se_iso($now)];
+        $channelIds = [];
+        foreach ($pool as $video) { $channel = is_array($video['_mlChannel'] ?? null) ? $video['_mlChannel'] : []; $id=se_channel_key($channel); if($id!=='')$channelIds[$id]=true; }
+        return array_merge($definition, [
+            'enabled'=>true,'assignedChannelIds'=>array_keys($channelIds),'sourceCount'=>count($channelIds),'eligibleVideoCount'=>count($pool),
+            'schedule'=>$schedule,'liveQueue'=>$queue,'liveState'=>$state,'history'=>$history,'rewindCursor'=>$rewindCursor,
+            'engineVersion'=>3,'poolSignature'=>$poolSignature,'updatedAt'=>se_iso($now),
+            'rules'=>['rewind'=>true,'windowHours'=>$windowHours,'newUploadsBecomeNext'=>true,'personalSkip'=>true,'loop'=>true],
+        ]);
+    }
+
     function ml_tick_station(array $data, array $definition, array $existing, int $now): array {
+        if (ml_is_rewind($definition)) return ml_tick_rewind_station($data, $definition, $existing, $now);
         $stationId = (string)$definition['id'];
         $channels = ml_assigned_channels($data, $stationId);
         $history = array_values(array_filter(is_array($existing['history'] ?? null) ? $existing['history'] : [], 'is_array'));

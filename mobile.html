@@ -1147,6 +1147,7 @@ body.tutv-fs-active .tutv-exit-fs-btn{
     <button class="live-ctrl-btn" id="live-mute-btn" onclick="liveMute()" title="Mute" aria-label="Mute"></button>
     <input type="range" class="live-ctrl-vol" id="live-vol" min="0" max="100" value="0" oninput="liveVol(this.value)">
     <div class="live-ctrl-spacer"></div>
+    <button class="live-ctrl-btn" id="mobile-rewind-skip-btn" onclick="skipMobileRewindVideo()" title="Salta video" aria-label="Salta video" style="display:none">SKIP</button>
     <button class="live-ctrl-btn live-lang-btn" id="mobile-live-lang-btn" onclick="toggleMobileLiveLanguageMenu()">IT</button>
     <button class="live-ctrl-btn live-cc-btn" id="mobile-live-cc-btn" onclick="toggleMobileLiveCaptions()">CC</button>
     <button class="live-ctrl-btn" onclick="liveFs()" title="Schermo intero" aria-label="Schermo intero"><svg class="icon-svg" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
@@ -1354,8 +1355,18 @@ const MOBILE_WEB_LIVE_DEFINITIONS = {
   kids: {name:'Live Kids',logo:'icons/live-kids.svg?v=20260821'}, crime: {name:'Live Crime',logo:'icons/live-crime.svg'},
   docu: {name:'Live Docu & Lifestyle',logo:'icons/live-docu-lifestyle.svg'},
   cucina: {name:'Live Cucina',logo:'icons/live-cucina.svg'},
-  girl: {name:'Live Girl',logo:'icons/live-girl.svg'}
+  girl: {name:'Live Girl',logo:'icons/live-girl.svg'},
+  rewind24: {name:'Rewind 24h',logo:'icons/live-rewind-24.svg'},
+  rewind7: {name:'Rewind 7',logo:'icons/live-rewind-7.svg'},
+  rewind30: {name:'Rewind 30',logo:'icons/live-rewind-30.svg'}
 };
+const MOBILE_REWIND_IDS=new Set(['rewind24','rewind7','rewind30']);
+let mobileRewindAdvancePending=false;
+function getMobileRewindAnchor(id=mobileActiveWebLiveId){try{return String(sessionStorage.getItem('tutv_mobile_rewind_anchor_'+id)||'')}catch(e){return ''}}
+function getMobileRewindAnchorAt(id=mobileActiveWebLiveId){try{return Math.max(0,Number(sessionStorage.getItem('tutv_mobile_rewind_anchor_at_'+id)||0)||0)}catch(e){return 0}}
+function saveMobileRewindAnchor(id,anchor,startedAt){try{sessionStorage.setItem('tutv_mobile_rewind_anchor_'+id,String(anchor||''));sessionStorage.setItem('tutv_mobile_rewind_anchor_at_'+id,String(startedAt||Date.now()))}catch(e){}}
+function updateMobileRewindSkipControl(){const b=document.getElementById('mobile-rewind-skip-btn'),active=MOBILE_REWIND_IDS.has(mobileActiveWebLiveId);if(b){b.style.display=active?'':'none';b.textContent='SKIP'}}
+async function skipMobileRewindVideo(){if(!MOBILE_REWIND_IDS.has(mobileActiveWebLiveId)||mobileRewindAdvancePending)return;const anchor=String(DB.liveState?.currentScheduleId||DB.liveQueue?.[0]?.id||getMobileRewindAnchor()||'');if(!anchor)return;saveMobileRewindAnchor(mobileActiveWebLiveId,anchor,Date.now());mobileRewindAdvancePending=true;stopLive();DB.liveState=null;DB.liveQueue=[];showLiveLoading();await refreshLiveFromServer();mobileRewindAdvancePending=false;renderLive();if(_currentView==='live')await enterLiveView()}
 let mobileActiveWebLiveId = (()=>{
   try {
     const saved=sessionStorage.getItem('tutv_mobile_web_live')||'main';
@@ -1538,13 +1549,16 @@ async function fetchLiveState(){
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const requestStartedAt = Date.now();
-      const r = await fetch(getBasePath() + 'api/live-state.php?channel=' + encodeURIComponent(mobileActiveWebLiveId) + '&live=' + Date.now() + '&attempt=' + attempt, { cache: 'no-store' });
+      const rewindActive=MOBILE_REWIND_IDS.has(mobileActiveWebLiveId),rewindAnchor=rewindActive?getMobileRewindAnchor(mobileActiveWebLiveId):'',rewindAt=rewindActive?Math.floor(getMobileRewindAnchorAt(mobileActiveWebLiveId)/1000):0;
+      const rewindQuery=rewindActive?'&anchor='+encodeURIComponent(rewindAnchor)+'&anchorAt='+rewindAt+'&advance='+(mobileRewindAdvancePending?1:0):'';
+      const r = await fetch(getBasePath() + 'api/live-state.php?channel=' + encodeURIComponent(mobileActiveWebLiveId) + rewindQuery + '&live=' + Date.now() + '&attempt=' + attempt, { cache: 'no-store' });
       if (!r.ok) {
         if (attempt === 2) return fallback;
         continue;
       }
       const text = await r.text();
       const data = JSON.parse(text);
+      if(rewindActive&&data?.liveState?.currentScheduleId&&(mobileRewindAdvancePending||rewindAnchor))saveMobileRewindAnchor(mobileActiveWebLiveId,data.liveState.currentScheduleId,getMobileRewindAnchorAt(mobileActiveWebLiveId)||Date.now());
       const serverNow = new Date(data?.serverNow || 0).getTime();
       if(Number.isFinite(serverNow) && serverNow > 0){
         const clientMidpoint = requestStartedAt + ((Date.now() - requestStartedAt) / 2);
@@ -2209,6 +2223,7 @@ function renderMobileWebLiveTabs(){
   const definition=MOBILE_WEB_LIVE_DEFINITIONS[mobileActiveWebLiveId];
   if(heading) heading.innerHTML=`Live <span>${esc(definition.name.replace(/^Live\s+/,''))}</span>`;
   const bug=document.getElementById('mobile-live-channel-bug');if(bug){bug.src=definition.logo;bug.alt='TubeTV '+definition.name;}
+  updateMobileRewindSkipControl();
   requestAnimationFrame(()=>tabs.querySelector('.active')?.scrollIntoView?.({behavior:'smooth',block:'nearest',inline:'center'}));
 }
 
@@ -4164,6 +4179,7 @@ function createLivePlayer(vid, offset){
         }
       },
       onStateChange:(e)=>{
+        if(e.data === YT.PlayerState.ENDED && MOBILE_REWIND_IDS.has(mobileActiveWebLiveId)){skipMobileRewindVideo();return;}
         if(e.data === YT.PlayerState.PLAYING){
           showMobileLiveStartGate(false);
           clearTimeout(_mobileLiveWatchdogTimer);

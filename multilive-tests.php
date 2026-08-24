@@ -77,6 +77,24 @@ $girl = $stations['girl'];
 ml_check($girl['sourceCount'] === 1 && ($girl['liveQueue'][0]['channelId'] ?? '') === 'crime_a', 'Live Girl station was not generated');
 ml_check(($stations['kids']['liveState']['status'] ?? '') === 'NO_SOURCES', 'empty station status is not explicit');
 
+// Rewind stations use every active source and enforce their publication window.
+$rewind24 = $stations['rewind24'];
+$rewind7 = $stations['rewind7'];
+$rewind30 = $stations['rewind30'];
+ml_check(($rewind24['eligibleVideoCount'] ?? -1) === 1, 'Rewind 24h did not enforce the 24-hour window');
+ml_check(($rewind7['eligibleVideoCount'] ?? -1) === 3, 'Rewind 7 did not enforce the seven-day window');
+ml_check(($rewind30['eligibleVideoCount'] ?? -1) === 5, 'Rewind 30 did not enforce the 30-day window');
+ml_check(($rewind24['liveQueue'][0]['videoId'] ?? '') === 'crimeA00001', 'Rewind 24h did not start from the newest eligible upload');
+ml_check(count($rewind24['schedule'] ?? []) > 10, 'Rewind 24h did not loop its short pool continuously');
+ml_check(($rewind24['rules']['newUploadsBecomeNext'] ?? false) === true && ($rewind24['rules']['personalSkip'] ?? false) === true, 'Rewind rules are not exposed');
+
+// A new upload never interrupts on-air content, but becomes the next item.
+$withNewUpload = $data;
+$withNewUpload['videos'][] = $video('brandNew001', 'crime_b', $now + 20, 'Ultimissima pubblicazione');
+$rewindUpdated = ml_tick_station($withNewUpload, ml_definitions()['rewind7'], $rewind7, $now + 30);
+ml_check(($rewindUpdated['liveQueue'][0]['videoId'] ?? '') === ($rewind7['liveQueue'][0]['videoId'] ?? ''), 'new upload interrupted Rewind content already on air');
+ml_check(($rewindUpdated['liveQueue'][1]['videoId'] ?? '') === 'brandNew001', 'new upload did not become the next Rewind item');
+
 $firstScheduleIds = array_column(array_slice($crime['schedule'], 0, 3), 'id');
 $same = ml_tick_all($data, $now + 30)['crime'];
 ml_check(array_column(array_slice($same['schedule'], 0, 3), 'id') === $firstScheduleIds, 'tick rebuilt an active queue before its boundary');

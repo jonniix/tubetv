@@ -31,13 +31,18 @@ function live_state_duration(array $item): int {
 
 $now = time();
 $stationId = strtolower(trim((string)($_GET['channel'] ?? 'main')));
-$allowedStations = ['main', 'live2', 'kids', 'crime', 'docu', 'cucina', 'girl'];
+$allowedStations = ['main', 'live2', 'kids', 'crime', 'docu', 'cucina', 'girl', 'rewind24', 'rewind7', 'rewind30'];
 if (!in_array($stationId, $allowedStations, true)) {
     http_response_code(404);
     echo json_encode(['ok' => false, 'error' => 'LIVE_CHANNEL_NOT_FOUND']);
     exit;
 }
 $secondary = $stationId !== 'main';
+$rewindStation = in_array($stationId, ['rewind24', 'rewind7', 'rewind30'], true);
+$personalSkip = $rewindStation ? max(0, min(250, (int)($_GET['skip'] ?? 0))) : 0;
+$personalAnchor = $rewindStation ? trim((string)($_GET['anchor'] ?? '')) : '';
+$personalAdvance = $rewindStation && (int)($_GET['advance'] ?? 0) === 1;
+$personalAnchorAt = $rewindStation ? max(0, (int)($_GET['anchorAt'] ?? 0)) : 0;
 $station = $secondary && is_array($data['webLiveChannels'][$stationId] ?? null)
     ? $data['webLiveChannels'][$stationId]
     : [];
@@ -73,6 +78,20 @@ foreach ($timeline as $index => $entry) {
 
 $projected = $currentIndex !== null;
 if ($projected) {
+    $personalOffset = 0;
+    if ($rewindStation && $personalAnchor !== '') {
+        foreach ($timeline as $index => $entry) {
+            if ((string)($entry['item']['id'] ?? '') === $personalAnchor) { $currentIndex = $index; break; }
+        }
+        if ($personalAdvance) $currentIndex = min(count($timeline) - 1, $currentIndex + 1);
+        if ($personalAnchorAt > 0 && $personalAnchorAt <= $now) $personalOffset = min(86400, $now - $personalAnchorAt);
+        while ($personalOffset >= live_state_duration($timeline[$currentIndex]['item']) && $currentIndex < count($timeline) - 1) {
+            $personalOffset -= live_state_duration($timeline[$currentIndex]['item']);
+            $currentIndex++;
+        }
+    } elseif ($personalSkip > 0) {
+        $currentIndex = min(count($timeline) - 1, $currentIndex + $personalSkip);
+    }
     $queue = [];
     for ($i = $currentIndex; $i < count($timeline) && count($queue) < 3; $i++) $queue[] = $timeline[$i]['item'];
     $current = $queue[0];
@@ -89,11 +108,12 @@ if ($projected) {
         'currentTitle' => (string)($current['title'] ?? 'TubeTV Live'),
         'currentChannel' => (string)($current['channel'] ?? $current['channelTitle'] ?? 'TubeTV'),
         'currentDurationSeconds' => $duration,
-        'currentStartedAt' => (string)$current['startDateTime'],
-        'actualStartDateTime' => (string)$current['startDateTime'],
-        'currentEndsAt' => (string)$current['endDateTime'],
-        'offset' => max(0, $now - $timeline[$currentIndex]['start']),
-        'currentVideoOffset' => max(0, $now - $timeline[$currentIndex]['start']),
+        'currentStartedAt' => $personalAnchor !== '' ? gmdate('Y-m-d\TH:i:s', $now - $personalOffset) . '.000Z' : ($personalSkip > 0 ? gmdate('Y-m-d\TH:i:s', $now) . '.000Z' : (string)$current['startDateTime']),
+        'actualStartDateTime' => $personalAnchor !== '' ? gmdate('Y-m-d\TH:i:s', $now - $personalOffset) . '.000Z' : ($personalSkip > 0 ? gmdate('Y-m-d\TH:i:s', $now) . '.000Z' : (string)$current['startDateTime']),
+        'currentEndsAt' => $personalAnchor !== '' ? gmdate('Y-m-d\TH:i:s', $now - $personalOffset + $duration) . '.000Z' : ($personalSkip > 0 ? gmdate('Y-m-d\TH:i:s', $now + $duration) . '.000Z' : (string)$current['endDateTime']),
+        'offset' => $personalAnchor !== '' ? $personalOffset : ($personalSkip > 0 ? 0 : max(0, $now - $timeline[$currentIndex]['start'])),
+        'currentVideoOffset' => $personalAnchor !== '' ? $personalOffset : ($personalSkip > 0 ? 0 : max(0, $now - $timeline[$currentIndex]['start'])),
+        'currentScheduleId' => (string)($current['id'] ?? ''),
         'pendingNext' => $queue[1] ?? null,
         'transitionState' => ['active' => false, 'startedAt' => null, 'durationSeconds' => 0],
         'adState' => ['active' => false, 'startedAt' => null, 'durationSeconds' => 0],
@@ -102,6 +122,10 @@ if ($projected) {
         'currentChangedBy' => 'bot-v3-projection',
         'currentChangeReason' => 'wall_clock_read_projection',
         'projectedFromSchedule' => true,
+        'personalSkip' => $personalSkip,
+        'personalAnchor' => $personalAnchor,
+        'personalAdvanceApplied' => $personalAdvance,
+        'rewindChannel' => $rewindStation,
     ]);
 } else {
     $state = $secondary
@@ -119,6 +143,8 @@ echo json_encode([
     'channelId' => $stationId,
     'channelName' => $secondary ? (string)($station['name'] ?? ucfirst($stationId)) : 'Live Web 1',
     'projected' => $projected,
+    'rewindChannel' => $rewindStation,
+    'personalSkip' => $personalSkip,
     'serverNow' => gmdate('Y-m-d\TH:i:s', $now) . '.000Z',
     'liveState' => $state,
     'liveQueue' => $queue,

@@ -1894,6 +1894,9 @@ nav { z-index:800 !important; }
         <button class="live-channel-tab" data-live-channel="docu" onclick="selectWebLiveChannel('docu')">Live Docu &amp; Lifestyle</button>
         <button class="live-channel-tab" data-live-channel="cucina" onclick="selectWebLiveChannel('cucina')">Live Cucina</button>
         <button class="live-channel-tab" data-live-channel="girl" onclick="selectWebLiveChannel('girl')">Live Girl</button>
+        <button class="live-channel-tab" data-live-channel="rewind24" onclick="selectWebLiveChannel('rewind24')">Rewind 24h</button>
+        <button class="live-channel-tab" data-live-channel="rewind7" onclick="selectWebLiveChannel('rewind7')">Rewind 7</button>
+        <button class="live-channel-tab" data-live-channel="rewind30" onclick="selectWebLiveChannel('rewind30')">Rewind 30</button>
       </div>
       <div class="live-onair-pill"><span class="live-dot"></span> ON AIR 24/7</div>
     </div>
@@ -1944,6 +1947,7 @@ nav { z-index:800 !important; }
                 </button>
                 <input class="lco-vol-slider" id="lco-vol-slider" type="range" min="0" max="100" value="100" oninput="setLiveVolume(this.value)" title="Volume">
                 <button class="lco-btn live-cc-btn" id="live-cc-btn" onclick="toggleLiveCaptions()" title="Sottotitoli">CC</button>
+                <button class="lco-btn" id="live-rewind-skip-btn" onclick="skipRewindVideo()" title="Salta al prossimo video" style="display:none">SKIP</button>
                 <button class="lco-btn live-lang-btn" id="live-language-btn" onclick="toggleLiveLanguageMenu()" title="Lingua">IT</button>
                 <button class="lco-btn" onclick="toggleLiveFullscreen()" title="Schermo intero">
                   <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
@@ -2348,8 +2352,18 @@ const WEB_LIVE_DEFINITIONS={
   crime:{name:'Live Crime',logo:'icons/live-crime.svg',description:'Crime 24/7: le fonti si alternano una alla volta.'},
   docu:{name:'Live Docu & Lifestyle',logo:'icons/live-docu-lifestyle.svg',description:'Documentari e lifestyle recenti in rotazione continua 24/7.'},
   cucina:{name:'Live Cucina',logo:'icons/live-cucina.svg',description:'Ricette, chef e cultura gastronomica in rotazione continua 24/7.'},
-  girl:{name:'Live Girl',logo:'icons/live-girl.svg',description:'Creator, lifestyle e intrattenimento in una rotazione continua 24/7.'}
+  girl:{name:'Live Girl',logo:'icons/live-girl.svg',description:'Creator, lifestyle e intrattenimento in una rotazione continua 24/7.'},
+  rewind24:{name:'Rewind 24h',logo:'icons/live-rewind-24.svg',description:'Loop personale di tutti i video pubblicati nelle ultime 24 ore. Le novita entrano subito come prossimo contenuto.'},
+  rewind7:{name:'Rewind 7',logo:'icons/live-rewind-7.svg',description:'Loop personale dei video degli ultimi 7 giorni, dal piu recente al meno recente.'},
+  rewind30:{name:'Rewind 30',logo:'icons/live-rewind-30.svg',description:'Loop personale dei video degli ultimi 30 giorni, con salto libero tra i contenuti.'}
 };
+const REWIND_LIVE_IDS=new Set(['rewind24','rewind7','rewind30']);
+let rewindAdvancePending=false;
+function getRewindAnchor(id=activeWebLiveId){try{return String(sessionStorage.getItem('tubetv_rewind_anchor_'+id)||'')}catch(e){return ''}}
+function getRewindAnchorAt(id=activeWebLiveId){try{return Math.max(0,Number(sessionStorage.getItem('tubetv_rewind_anchor_at_'+id)||0)||0)}catch(e){return 0}}
+function saveRewindAnchor(id,anchor,startedAt){try{sessionStorage.setItem('tubetv_rewind_anchor_'+id,String(anchor||''));sessionStorage.setItem('tubetv_rewind_anchor_at_'+id,String(startedAt||Date.now()))}catch(e){}}
+function updateRewindSkipControl(){const b=document.getElementById('live-rewind-skip-btn'),active=REWIND_LIVE_IDS.has(activeWebLiveId);if(b){b.style.display=active?'':'none';b.textContent='SALTA'}}
+async function skipRewindVideo(){if(!REWIND_LIVE_IDS.has(activeWebLiveId)||rewindAdvancePending)return;const anchor=String(DB.liveState?.currentScheduleId||DB.publicLiveSchedule?.current?.id||DB.liveQueue?.[0]?.id||getRewindAnchor()||'');if(!anchor)return;saveRewindAnchor(activeWebLiveId,anchor,Date.now());rewindAdvancePending=true;updateRewindSkipControl();_currentLiveVideoId=null;DB.liveState={};DB.liveQueue=[];await applyPublicSchedule();rewindAdvancePending=false;renderLive()}
 let activeWebLiveId='main';
 try{const saved=sessionStorage.getItem('tubetv_web_live_channel');if(WEB_LIVE_DEFINITIONS[saved])activeWebLiveId=saved;}catch(e){}
 
@@ -2365,6 +2379,7 @@ function renderWebLiveChannelTabs(){
   const description=document.getElementById('live-channel-description');if(description)description.textContent=definition.description;
   const bug=document.getElementById('live-channel-bug');if(bug){bug.src=definition.logo;bug.alt='TubeTV '+definition.name;}
   const guideButton=document.querySelector('.live-guide-open');if(guideButton)guideButton.textContent=activeWebLiveId==='main'?'Tutta la giornata':'Programmazione 24h';
+  updateRewindSkipControl();
 }
 
 async function selectWebLiveChannel(channelId){
@@ -3194,7 +3209,9 @@ function getLiveQueueUnified(){
 async function fetchLiveState(){
   try {
     const requestStartedAt = Date.now();
-    const r = await fetch(getBasePath() + 'api/live-state.php?channel=' + encodeURIComponent(activeWebLiveId) + '&ts=' + Date.now(), {cache:'no-store'});
+    const rewindActive=REWIND_LIVE_IDS.has(activeWebLiveId),rewindAnchor=rewindActive?getRewindAnchor(activeWebLiveId):'',rewindAt=rewindActive?Math.floor(getRewindAnchorAt(activeWebLiveId)/1000):0;
+    const rewindQuery=rewindActive?'&anchor='+encodeURIComponent(rewindAnchor)+'&anchorAt='+rewindAt+'&advance='+(rewindAdvancePending?1:0):'';
+    const r = await fetch(getBasePath() + 'api/live-state.php?channel=' + encodeURIComponent(activeWebLiveId) + rewindQuery + '&ts=' + Date.now(), {cache:'no-store'});
     if (!r.ok) return { queue: [], liveState: null };
     const responseReceivedAt = Date.now();
     const serverDate = new Date(r.headers.get('Date') || 0).getTime();
@@ -3203,6 +3220,7 @@ async function fetchLiveState(){
       _liveServerClockOffsetMs = (serverDate + 500) - clientMidpoint;
     }
     const data = await r.json();
+    if(rewindActive&&data?.liveState?.currentScheduleId&&(rewindAdvancePending||rewindAnchor))saveRewindAnchor(activeWebLiveId,data.liveState.currentScheduleId,getRewindAnchorAt(activeWebLiveId)||Date.now());
     if (!data?.liveState) {
       console.warn('liveState mancante: sync non garantita');
     }
@@ -8379,6 +8397,7 @@ function initLiveYTPlayer(item){
         if (e.data === YT.PlayerState.ENDED) {
           _liveVideoEnded = true;
           if(_liveAdPlaying || _liveTransitioning) return;
+          if(REWIND_LIVE_IDS.has(activeWebLiveId)){skipRewindVideo();return;}
           console.log('LIVE VIDEO ENDED - attendo nuovo liveState dal bot');
           setTimeout(async () => {
             try { await maybeRecoverLiveState('video_ended'); } catch(err) {}
