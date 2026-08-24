@@ -386,7 +386,7 @@ nav .nav-links button:hover, nav .nav-links button.active { color: var(--text); 
 .live-player-card { position: relative; height: 100%; min-height: 0; background: #000; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,.08); box-shadow: 0 24px 70px rgba(0,0,0,.45); }
 .live-player-wrap { position: relative; width: 100%; height: 100%; min-height: 0; background: #000; }
 .live-player-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none !important; }
-.live-channel-bug{position:absolute;z-index:18;top:14px;right:16px;width:clamp(92px,11vw,126px);height:auto;pointer-events:none;opacity:.92}
+.live-channel-bug{display:block;position:absolute;z-index:70;top:14px;right:16px;width:clamp(104px,12vw,142px);height:auto;pointer-events:none;opacity:1;filter:drop-shadow(0 3px 7px rgba(0,0,0,.9))}
 .live-start-gate{display:none;position:absolute;inset:0;z-index:45;place-items:center;background:rgba(0,0,0,.62);border:0;color:#fff;font:800 1rem 'DM Sans',sans-serif;cursor:pointer}
 .live-start-gate.show{display:grid}.live-start-gate span{padding:14px 22px;border-radius:999px;background:#e63946;box-shadow:0 12px 35px rgba(0,0,0,.4)}
 #live-preload-wrap{
@@ -400,8 +400,11 @@ nav .nav-links button:hover, nav .nav-links button.active { color: var(--text); 
 #live-preload-player{width:1px;height:1px;}
 .live-overlay { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(0,0,0,.65), transparent 35%), linear-gradient(0deg, rgba(0,0,0,.88), transparent 45%); }
 .live-overlay-content { position: absolute; left: 22px; right: 22px; bottom: 22px; z-index: 5; }
-.live-badge-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.live-badge { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 999px; background: rgba(230,57,70,.92); color: white; font-size: .68rem; font-weight: 900; letter-spacing: .5px; text-transform: uppercase; }
+.live-editorial-stack{display:grid;justify-items:start;gap:5px;margin-bottom:10px}
+.live-badge-row { display: flex; align-items: center; gap: 10px; margin:0; }
+.live-badge { display: inline-flex; align-items: center; gap: 7px; padding:0; border:0; background:none; color:#fff; font-size:.7rem; font-weight:900; letter-spacing:1.15px; text-transform:uppercase;text-shadow:0 2px 9px #000; }
+.live-premiere-alert{display:none;max-width:min(780px,88vw);padding:0;color:rgba(255,255,255,.9);font-size:.68rem;font-weight:750;letter-spacing:.35px;line-height:1.35;text-shadow:0 2px 9px #000}
+.live-premiere-alert.show{display:block}.live-premiere-alert strong{color:#ff5361;font-weight:950;letter-spacing:.8px}
 .live-clock { color: rgba(255,255,255,.76); font-size: .75rem; font-weight: 700; }
 .live-current-title { margin: 0; max-width: min(760px, 100%); font-size: clamp(1.5rem, 2.7vw, 2.4rem); line-height: 1.02; font-weight: 800; letter-spacing: -.03em; text-shadow: 0 10px 28px rgba(0,0,0,.4); }
 .live-current-meta { margin: 8px 0 0; color: rgba(255,255,255,.78); font-size: .86rem; font-weight: 600; }
@@ -1773,7 +1776,7 @@ nav { z-index:800 !important; }
       <div class="live-player-card">
         <div class="live-player-wrap" id="live-player-wrap">
           <iframe id="live-iframe" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture"></iframe>
-          <img class="live-channel-bug" id="live-channel-bug" src="icons/live-web-1.svg?v=20260821" alt="TubeTV Live Web 1">
+          <img class="live-channel-bug" id="live-channel-bug" src="icons/live-web-1.svg?v=20260824-v4" alt="TubeTV Live Web 1" onerror="this.onerror=null;this.src='icons/tubetv-master.png?v=20260824'">
           <button id="live-start-gate" class="live-start-gate" type="button" onclick="startLiveFromUserGesture()"><span>Tocca per avviare la diretta</span></button>
           <div id="live-preload-wrap" style="display:none"><div id="live-preload-player"></div></div>
           <div id="live-ad-overlay">
@@ -1801,9 +1804,12 @@ nav { z-index:800 !important; }
               <svg id="live-fs-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
             </button>
             <div class="live-overlay-content">
-              <div class="live-badge-row">
-                <span class="live-badge"><span class="live-dot"></span> LIVE</span>
-                <span class="live-clock" id="lco-clock">--:--</span>
+              <div class="live-editorial-stack">
+                <div class="live-badge-row">
+                  <span class="live-badge" id="live-program-badge"><span class="live-dot"></span><span id="live-program-badge-text">IN ONDA</span></span>
+                  <span class="live-clock" id="lco-clock">--:--</span>
+                </div>
+                <div class="live-premiere-alert" id="live-premiere-alert"></div>
               </div>
               <h2 class="live-current-title" id="live-current-title">In onda ora</h2>
               <p class="live-current-meta" id="live-current-meta"></p>
@@ -2198,7 +2204,7 @@ let DB={videos:[],slots:[],spots:[],channels:[],palinsesto:[],schedule:[],schedu
 window.DB = DB;
 const APP=DB;
 const WEB_LIVE_DEFINITIONS={
-  main:{name:'Live Web 1',logo:'icons/live-web-1.svg?v=20260821',description:'Palinsesto intelligente TubeTV con fasce orarie e programmazione dinamica.'},
+  main:{name:'Live Web 1',logo:'icons/live-web-1.svg?v=20260824-v4',description:'Palinsesto intelligente TubeTV con fasce orarie e programmazione dinamica.'},
   live2:{name:'Live Web 2',logo:'icons/live-web-2.svg?v=20260821',description:'Rotazione 24/7 delle fonti assegnate, con priorità alle novità.'},
   kids:{name:'Live Kids',logo:'icons/live-kids.svg?v=20260821',description:'Canale lineare Kids sempre attivo con contenuti recenti.'},
   crime:{name:'Live Crime',logo:'icons/live-crime.svg',description:'Crime 24/7: le fonti si alternano una alla volta.'},
@@ -2479,7 +2485,7 @@ async function refreshFromUnified(force){
         const by = String(DB.liveState?.currentChangedBy || DB.liveState?.lastAuthority?.requestedBy || 'unknown');
         const reason = String(DB.liveState?.currentChangeReason || DB.liveState?.lastAuthority?.reason || 'unspecified');
         console.log('[LIVE AUTHORITY]', { oldVideoId: prevCurrent, newVideoId: nextCurrent, reason, by });
-        if(!['bot-v3','bot-v3-projection'].includes(by)) {
+        if(!['bot-v3','bot-v3-projection','bot-v4'].includes(by)) {
           console.error('[LIVE AUTHORITY]', { error: 'current change source is not the official bot', oldVideoId: prevCurrent, newVideoId: nextCurrent, reason, by });
         }
       }
@@ -3325,7 +3331,7 @@ async function applyPublicSchedule(){
       const by = String(DB.liveState?.currentChangedBy || DB.liveState?.lastAuthority?.requestedBy || 'unknown');
       const reason = String(DB.liveState?.currentChangeReason || DB.liveState?.lastAuthority?.reason || 'unspecified');
       console.log('[LIVE AUTHORITY]', { oldVideoId: prevCurrent, newVideoId: nextCurrent, reason, by });
-      if(!['bot-v3','bot-v3-projection'].includes(by)) {
+      if(!['bot-v3','bot-v3-projection','bot-v4'].includes(by)) {
         console.error('[LIVE AUTHORITY]', { error: 'current change source is not the official bot', oldVideoId: prevCurrent, newVideoId: nextCurrent, reason, by });
       }
     }
@@ -3517,6 +3523,23 @@ function setLiveText(title, meta, nextText){
   if (titleEl) titleEl.textContent = title || 'In attesa';
   if (metaEl) metaEl.textContent = meta || '';
   if (nextEl) nextEl.textContent = nextText || '';
+}
+
+function renderLiveEditorialOverlay(current){
+  const badgeText=document.getElementById('live-program-badge-text');
+  const alert=document.getElementById('live-premiere-alert');
+  const classification=String(current?.displayBadge||current?.classification||DB.liveState?.displayBadge||DB.liveState?.classification||'').trim().toUpperCase();
+  const started=new Date(current?.actualStartDateTime||current?.startDateTime||DB.liveState?.currentStartedAt||0).getTime();
+  const elapsed=Number.isFinite(started)?Math.max(0,(getLiveNowMs()-started)/1000):999;
+  const duration=Math.max(1,Number(current?.badgeDurationSeconds||DB.liveState?.badgeDurationSeconds||15));
+  if(badgeText)badgeText.textContent=classification&&elapsed<=duration?`IN ONDA · ${classification}`:'IN ONDA';
+  const premiere=DB.liveState?.nextRatedPremiere||DB.publicLiveSchedule?.nextRatedPremiere||null;
+  if(alert){
+    const at=new Date(premiere?.startDateTime||0);
+    const valid=activeWebLiveId==='main'&&premiere&&Number(premiere.rating||0)>=8&&Number.isFinite(at.getTime())&&at.getTime()>getLiveNowMs();
+    alert.classList.toggle('show',!!valid);
+    alert.innerHTML=valid?`<strong>PROSSIMA PREMIERE</strong> · ${escapeHtmlSafe(premiere.channel||'TubeTV')} · ${escapeHtmlSafe(premiere.title||'Video')} · ORE ${escapeHtmlSafe(at.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}))}`:'';
+  }
 }
 
 function getLiveQueueForSidebar() {
@@ -3882,6 +3905,7 @@ function renderLive(){
   }
 
   if (!current) {
+    renderLiveEditorialOverlay(null);
     setLiveText('Live in sincronizzazione', 'In attesa di liveState dal server', 'Riprovo ogni 3 secondi');
     renderLiveScheduleRows(null, nextItems);
     scheduleLivePollSoon();
@@ -3889,6 +3913,7 @@ function renderLive(){
   }
 
   const videoId = getPlaybackVideoId(current);
+  renderLiveEditorialOverlay(current);
 
   if (!videoId) {
     setLiveText('Video non disponibile', 'Sorgente non disponibile per questo slot', nextItems[0] ? 'Prossimo: ' + (nextItems[0].title || 'Contenuto in arrivo') : 'ID video mancante nel palinsesto');
@@ -7968,6 +7993,7 @@ function startLiveClock(){
   setInterval(()=>{
     const cl=document.getElementById('lco-clock');
     if(cl)cl.textContent=new Date().toLocaleTimeString('it',{hour:'2-digit',minute:'2-digit'});
+    if(document.getElementById('view-live')?.classList.contains('active'))renderLiveEditorialOverlay(getLiveCurrent());
   },1000);
 }
 
@@ -8561,6 +8587,3 @@ body.tv-device-mode :focus{outline:4px solid #ffb703!important;outline-offset:3p
 <script defer src="account.js?v=16"></script>
 </body>
 </html>
-
-
-

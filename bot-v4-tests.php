@@ -21,7 +21,7 @@ function v4t_data(array $videos): array {
     return [
         'settings' => ['timezone' => 'Europe/Zurich', 'playbackCountry' => 'CH'],
         'botV3Settings' => ['minDurationMinutes' => 1, 'maxDurationMinutes' => 120],
-        'channels' => [['id' => 'source-1', 'name' => 'Fonte Uno', 'active' => true, 'rating' => 5]],
+        'channels' => [['id' => 'source-1', 'name' => 'Fonte Uno', 'active' => true, 'rating' => 9]],
         'slots' => [['id' => 'all-day', 'name' => 'Tutto il giorno', 'start' => '00:00', 'end' => '24:00', 'channelIds' => ['source-1']]],
         'videos' => $videos,
     ];
@@ -42,6 +42,15 @@ v4t_assert(($fresh[1]['classification'] ?? '') === 'NOVITA' && ($fresh[2]['class
 $archiveItems = array_values(array_filter($built['schedule'], static fn($item): bool => ($item['classification'] ?? '') === 'ARCHIVIO'));
 v4t_assert(se_video_id($archiveItems[0] ?? []) === 'archive-oldest', 'Archive must start from the oldest eligible item.');
 v4t_assert($built['cursorEnd'] !== $built['cursorStart'] || $built['archiveCycle'] > 0, 'Global archive cursor must advance.');
+
+// Official mode publishes V4 as the only authority for Live Web 1.
+$officialData = $data;
+$officialResult = v4_shadow_tick($officialData, $now, 'force_rebuild_queue', true);
+v4t_assert(!empty($officialResult['ok']), 'Official V4 tick must publish successfully.');
+v4t_assert(($officialData['activeScheduleEngine'] ?? '') === 'bot-v4', 'V4 must be marked as the active schedule engine.');
+v4t_assert((int)($officialData['publicLiveSchedule']['engineVersion'] ?? 0) === 4, 'Public Live Web 1 queue must declare engine V4.');
+v4t_assert(($officialData['liveState']['currentChangedBy'] ?? '') === 'bot-v4', 'Live authority must be Bot V4.');
+v4t_assert(count($officialData['publicLiveSchedule']['liveQueue'] ?? []) === 3, 'Official V4 must publish the locked three-item queue.');
 
 // Actual history is deduplicated and future entries are never counted as aired.
 $historyData = $data;
@@ -80,6 +89,11 @@ if ($realPath !== '') {
     v4t_assert(!empty($result['ok']), 'Real-data simulation must produce a schedule.');
     foreach ($protected as $key => $value) v4t_assert(($real[$key] ?? null) === $value, 'V4 shadow changed protected official field: ' . $key);
     fwrite(STDOUT, 'Real data: ' . json_encode($result['meta'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+    $officialReal = json_decode((string)file_get_contents($realPath), true);
+    $official = v4_shadow_tick($officialReal, time(), 'force_rebuild_queue', true);
+    v4t_assert(!empty($official['ok']), 'Real-data official V4 simulation must publish a current queue.');
+    v4t_assert(($officialReal['activeScheduleEngine'] ?? '') === 'bot-v4', 'Real-data official V4 must become active authority.');
+    fwrite(STDOUT, 'Real official queue: ' . count($officialReal['publicLiveSchedule']['liveQueue'] ?? []) . PHP_EOL);
 }
 
 echo "Bot V4 tests: OK\n";

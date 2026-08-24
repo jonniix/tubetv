@@ -598,7 +598,7 @@ label:has(#bot-auto-toggle){
         </button>
         <button class="sidebar-btn" onclick="switchAdmin('bot-v4',this)">
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
-          Bot V4 · Simulazione
+          Bot V4 · Ufficiale
         </button>
         <button class="sidebar-btn" onclick="switchAdmin('spots',this)">
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
@@ -1505,13 +1505,13 @@ label:has(#bot-auto-toggle){
       <!-- BOT V4 SHADOW -->
       <div class="admin-panel" id="panel-bot-v4">
         <div class="admin-header">
-          <h2>Bot V4 · Simulazione Live Web 1</h2>
-          <p>Confronta la nuova logica con il motore ufficiale senza cambiare ciò che va in onda.</p>
+          <h2>Bot V4 · Motore ufficiale Live Web 1</h2>
+          <p>Controlla il nuovo palinsesto ufficiale, le classificazioni editoriali e la rotazione dell’archivio.</p>
         </div>
         <div class="admin-card" style="border-color:#7c3aed;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
-            <div><span class="badge badge-purple">SHADOW · NON VA IN ONDA</span><h3 style="margin:.65rem 0 .25rem;">Anteprima indipendente del Bot V4</h3><div id="bot-v4-summary" style="color:var(--muted);font-size:.82rem;">In attesa del primo tick del cron…</div></div>
-            <button class="btn-warning" onclick="refreshBotV4()">Aggiorna simulazione</button>
+            <div><span class="badge badge-green">UFFICIALE · LIVE WEB 1</span><h3 style="margin:.65rem 0 .25rem;">Controllo operativo Bot V4</h3><div id="bot-v4-summary" style="color:var(--muted);font-size:.82rem;">In attesa del primo tick del cron…</div></div>
+            <button class="btn-warning" onclick="refreshBotV4()">Aggiorna stato</button>
           </div>
           <div class="stats-grid" id="bot-v4-stats" style="margin-top:1rem;"></div>
         </div>

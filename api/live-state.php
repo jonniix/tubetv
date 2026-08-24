@@ -150,5 +150,10 @@ echo json_encode([
     'serverNow' => gmdate('Y-m-d\TH:i:s', $now) . '.000Z',
     'liveState' => $state,
     'liveQueue' => $queue,
-    'publicLiveSchedule' => ['current' => $queue[0] ?? null, 'next' => $queue[1] ?? null, 'afterNext' => $queue[2] ?? null, 'liveQueue' => $queue],
+    'publicLiveSchedule' => [
+        'current' => $queue[0] ?? null, 'next' => $queue[1] ?? null, 'afterNext' => $queue[2] ?? null,
+        'liveQueue' => $queue,
+        'engineVersion' => (int)($data['publicLiveSchedule']['engineVersion'] ?? 3),
+        'nextRatedPremiere' => $secondary ? null : ($data['publicLiveSchedule']['nextRatedPremiere'] ?? null),
+    ],
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);

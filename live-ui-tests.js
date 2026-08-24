@@ -12,6 +12,9 @@ check(html.includes('function openTodayProgrammeGuide()'), 'the complete daily g
 check(html.includes('getSchedulePublication(item)'), 'publication dates are missing from the daily guide');
 check(html.includes("rewind24:{name:'Rewind 24h'") && html.includes("rewind3:{name:'Rewind 3'") && html.includes("rewind7:{name:'Rewind 7'") && html.includes("rewind30:{name:'Rewind 30'"), 'desktop Rewind channels are missing');
 check(html.includes('function skipRewindVideo()') && html.includes("'&anchor='") && html.includes("'&advance='"), 'personal Rewind skip is not connected to live-state');
+check(html.includes('id="live-channel-bug"') && html.includes('live-web-1.svg?v=20260824-v4'), 'the refreshed Live Web 1 channel logo is missing');
+check(html.includes('id="live-program-badge-text"') && html.includes('function renderLiveEditorialOverlay(current)'), 'the V4 editorial live badge is missing');
+check(html.includes('PROSSIMA PREMIERE') && html.includes('nextRatedPremiere'), 'the next high-rated Premiere announcement is missing');
 
 check(html.includes('function getLiveNowMs(){'), 'the server-aligned clock helper is missing');
 check(!html.includes('endAt - liveNowMs()'), 'the live boundary still calls the missing liveNowMs helper');

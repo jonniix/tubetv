@@ -117,6 +117,7 @@ if (!function_exists('v4_shadow_tick')) {
             'strategy' => 'v4_' . strtolower($classification),
             'reason' => $reason,
             'finalScore' => $score,
+            'channelRating' => (float)($video['channelRating'] ?? $video['selectedChannelRating'] ?? $video['ratingSource'] ?? 0),
             'shadow' => true,
             'isReplica' => $classification === 'REPLICA',
         ]);
@@ -189,7 +190,7 @@ if (!function_exists('v4_shadow_tick')) {
             if (!$channel || isset($used[se_video_id($video)]) || !se_is_playable($video, $channel, $data)) continue;
             $cursor = $index + 1;
             if ($cursor >= $count) $cursor = 0;
-            return ['video' => $video, 'channel' => $channel, 'score' => 1000 - $step];
+            return ['video' => $video, 'channel' => $channel, 'score' => 1000 - $step, 'archiveIndex' => $index, 'cursorAfter' => $cursor, 'cycleAfter' => $cycle];
         }
         // If every compatible archive item has already been used, begin a new
         // rotation rather than leaving a hole in the linear schedule.
@@ -202,7 +203,7 @@ if (!function_exists('v4_shadow_tick')) {
                 $channel = v4_video_channel($video, $channelMap);
                 if (!$channel || !se_is_playable($video, $channel, $data)) continue;
                 $cursor = ($index + 1) % $count;
-                return ['video' => $video, 'channel' => $channel, 'score' => 900 - $step];
+                return ['video' => $video, 'channel' => $channel, 'score' => 900 - $step, 'archiveIndex' => $index, 'cursorAfter' => $cursor, 'cycleAfter' => $cycle];
             }
         }
         return null;
@@ -231,24 +232,38 @@ if (!function_exists('v4_shadow_tick')) {
         $channels = se_active_channels($data);
         $historyStats = v4_history_stats($history);
         $archive = v4_archive_pool($pool, $now);
-        $cursorStart = max(0, (int)($data['botV4ArchiveCursor'] ?? 0));
+        $cursorStart = max(0, (int)($data['botV4ArchiveCursorCommitted'] ?? $data['botV4ArchiveCursor'] ?? 0));
         $archiveCursor = $archive ? $cursorStart % count($archive) : 0;
-        $archiveCycle = max(0, (int)($data['botV4ArchiveCycle'] ?? 0));
+        $archiveCycle = max(0, (int)($data['botV4ArchiveCycleCommitted'] ?? $data['botV4ArchiveCycle'] ?? 0));
         $schedule = [];
         $simUses = [];
         $archiveUsed = [];
 
         $locked = se_locked_live_items($data, $now, 3);
+        $allChannelMap = v4_channel_map($channels);
         $clock = $now;
         foreach ($locked as $item) {
             $copy = $item;
-            $copy['classification'] = 'BLOCCATO';
-            $copy['displayBadge'] = 'BLOCCATO';
+            $id = se_video_id($copy);
+            $published = v4_publication_ts($copy);
+            $alreadyAired = (int)($historyStats[$id]['count'] ?? 0);
+            $classification = strtoupper((string)($copy['classification'] ?? ''));
+            if (!in_array($classification, ['PREMIERE', 'NOVITA', 'ARCHIVIO', 'REPLICA'], true)) {
+                $classification = ($published > 0 && $published >= $now - 72 * 3600)
+                    ? ($alreadyAired === 0 ? 'PREMIERE' : 'NOVITA')
+                    : 'ARCHIVIO';
+            }
+            $copy['classification'] = $classification;
+            $copy['displayBadge'] = $classification === 'NOVITA' ? 'NOVITÀ' : $classification;
             $copy['badgeDurationSeconds'] = 15;
+            $lockedChannel = v4_video_channel($copy, $allChannelMap);
+            $copy['channelRating'] = (float)($lockedChannel['rating'] ?? $lockedChannel['stars'] ?? $copy['channelRating'] ?? 0);
             $copy['shadow'] = true;
+            $copy['forecastLocked'] = true;
             $schedule[] = $copy;
             $clock = max($clock, se_ts((string)($copy['endDateTime'] ?? '')));
             $simUses[se_video_id($copy)] = ($simUses[se_video_id($copy)] ?? 0) + 1;
+            if ($classification === 'ARCHIVIO') $archiveUsed[se_video_id($copy)] = true;
         }
 
         $week = v4_week_context($data, $clock);
@@ -283,14 +298,19 @@ if (!function_exists('v4_shadow_tick')) {
                 $id = se_video_id($fresh['video']);
                 $classification = $fresh['premiere'] ? 'PREMIERE' : 'NOVITA';
                 $reason = $fresh['premiere'] ? 'Primo passaggio TubeTV di una nuova uscita' : 'Nuovo passaggio entro 72 ore, autorizzato dal punteggio';
-                $item = v4_make_item($fresh['video'], $clock, $classification, $fresh['score'], $slot, $reason);
+                $ratedVideo = array_merge($fresh['video'], ['channelRating' => (float)($fresh['channel']['rating'] ?? $fresh['channel']['stars'] ?? 0)]);
+                $item = v4_make_item($ratedVideo, $clock, $classification, $fresh['score'], $slot, $reason);
                 $simUses[$id] = ($simUses[$id] ?? 0) + 1;
             } else {
                 $picked = v4_pick_archive($archive, $allowedChannels, $data, $archiveCursor, $archiveCycle, $archiveUsed);
                 if (!$picked) { $clock = max($clock + 60, (int)$window['end']); continue; }
                 $id = se_video_id($picked['video']);
                 $archiveUsed[$id] = true;
-                $item = v4_make_item($picked['video'], $clock, 'ARCHIVIO', $picked['score'], $slot, 'Archivio degli ultimi due anni, dal più vecchio al più recente');
+                $ratedVideo = array_merge($picked['video'], ['channelRating' => (float)($picked['channel']['rating'] ?? $picked['channel']['stars'] ?? 0)]);
+                $item = v4_make_item($ratedVideo, $clock, 'ARCHIVIO', $picked['score'], $slot, 'Archivio degli ultimi due anni, dal più vecchio al più recente');
+                $item['archiveIndex'] = (int)$picked['archiveIndex'];
+                $item['archiveCursorAfter'] = (int)$picked['cursorAfter'];
+                $item['archiveCycleAfter'] = (int)$picked['cycleAfter'];
             }
             $schedule[] = $item;
             $clock = se_ts($item['endDateTime']);
@@ -298,11 +318,101 @@ if (!function_exists('v4_shadow_tick')) {
         return ['schedule' => $schedule, 'cursorStart' => $cursorStart, 'cursorEnd' => $archiveCursor, 'archiveCycle' => $archiveCycle, 'archiveSize' => count($archive)];
     }
 
-    function v4_shadow_tick(array &$data, int $now, string $trigger = 'cron'): array {
+    function v4_next_rated_premiere(array $data, array $schedule, int $now): ?array {
+        $day = se_day_context($data, $now);
+        foreach ($schedule as $item) {
+            if (!is_array($item) || strtoupper((string)($item['classification'] ?? '')) !== 'PREMIERE') continue;
+            $start = se_ts((string)($item['startDateTime'] ?? ''));
+            $rating = (float)($item['channelRating'] ?? $item['selectedChannelRating'] ?? $item['ratingSource'] ?? 0);
+            if ($start <= $now || $start >= $day['end'] || $rating < 8) continue;
+            return [
+                'videoId' => se_video_id($item), 'title' => (string)($item['title'] ?? 'Video'),
+                'channel' => (string)($item['channel'] ?? $item['channelTitle'] ?? 'TubeTV'),
+                'rating' => $rating, 'startDateTime' => (string)$item['startDateTime'],
+            ];
+        }
+        return null;
+    }
+
+    function v4_compact_item(array $item): array {
+        return array_merge($item, [
+            'videoId' => se_video_id($item), 'durationSeconds' => se_duration($item),
+            'classification' => (string)($item['classification'] ?? 'ARCHIVIO'),
+            'displayBadge' => (string)($item['displayBadge'] ?? $item['classification'] ?? 'ARCHIVIO'),
+            'badgeDurationSeconds' => 15, 'engineVersion' => 4,
+        ]);
+    }
+
+    function v4_publish_official(array &$data, int $now): array {
+        $schedule = array_values(array_filter(is_array($data['botV4ShadowSchedule'] ?? null) ? $data['botV4ShadowSchedule'] : [], 'is_array'));
+        $currentIndex = -1;
+        foreach ($schedule as $index => $item) {
+            $start = se_ts((string)($item['startDateTime'] ?? ''));
+            $end = se_ts((string)($item['endDateTime'] ?? ''));
+            if (se_video_id($item) !== '' && $start <= $now && $end > $now) { $currentIndex = $index; break; }
+        }
+        if ($currentIndex < 0) return ['ok' => false, 'error' => 'V4_NO_CURRENT_ITEM'];
+        $queue = [];
+        foreach (array_slice($schedule, $currentIndex) as $item) {
+            if (se_video_id($item) === '') continue;
+            $queue[] = v4_compact_item($item);
+            if (count($queue) >= 3) break;
+        }
+        if (!$queue) return ['ok' => false, 'error' => 'V4_EMPTY_QUEUE'];
+        $current = $queue[0];
+        $start = se_ts((string)$current['startDateTime']);
+        $end = se_ts((string)$current['endDateTime']);
+        $offset = max(0, min(se_duration($current) - 1, $now - $start));
+        $pastToday = [];
+        $today = se_day_context($data, $now);
+        foreach (is_array($data['schedule'] ?? null) ? $data['schedule'] : [] as $item) {
+            $itemStart = se_ts((string)($item['startDateTime'] ?? ''));
+            $itemEnd = se_ts((string)($item['endDateTime'] ?? ''));
+            if ($itemStart >= $today['start'] && $itemEnd > 0 && $itemEnd <= $now) $pastToday[] = $item;
+        }
+        $futureToday = array_values(array_filter($schedule, static function ($item) use ($today): bool {
+            $start = se_ts((string)($item['startDateTime'] ?? ''));
+            return $start >= $today['start'] && $start < $today['end'];
+        }));
+        $data['futureSchedule'] = $schedule;
+        $data['schedule'] = array_merge($pastToday, $futureToday);
+        $data['palinsesto'] = $data['schedule'];
+        $data['internalSlotSchedule'] = $data['schedule'];
+        $data['futureScheduleMeta'] = array_merge(is_array($data['botV4Meta'] ?? null) ? $data['botV4Meta'] : [], ['engineVersion' => 4, 'official' => true]);
+        $data['scheduleMeta'] = ['date' => $today['date'], 'timezone' => $today['timezone'], 'generatedAt' => se_iso($now), 'items' => count($data['schedule']), 'engineVersion' => 4, 'official' => true];
+        $nextPremiere = v4_next_rated_premiere($data, $schedule, $now);
+        $data['publicLiveSchedule'] = array_merge(is_array($data['publicLiveSchedule'] ?? null) ? $data['publicLiveSchedule'] : [], [
+            'current' => $queue[0] ?? null, 'next' => $queue[1] ?? null, 'afterNext' => $queue[2] ?? null,
+            'liveQueue' => $queue, 'engineVersion' => 4, 'nextRatedPremiere' => $nextPremiere,
+        ]);
+        $data['liveQueue'] = $queue;
+        $data['liveState'] = array_merge(is_array($data['liveState'] ?? null) ? $data['liveState'] : [], [
+            'phase' => 'content', 'status' => 'playing', 'type' => 'video',
+            'currentVideoId' => se_video_id($current), 'currentTitle' => (string)($current['title'] ?? ''),
+            'currentChannel' => (string)($current['channel'] ?? $current['channelTitle'] ?? 'TubeTV'),
+            'currentStartedAt' => (string)$current['startDateTime'], 'actualStartDateTime' => (string)$current['startDateTime'],
+            'currentEndsAt' => (string)$current['endDateTime'], 'currentDurationSeconds' => se_duration($current),
+            'currentScheduleId' => (string)($current['id'] ?? ''), 'offset' => $offset, 'currentVideoOffset' => $offset,
+            'classification' => (string)($current['classification'] ?? ''), 'displayBadge' => (string)($current['displayBadge'] ?? ''),
+            'nextRatedPremiere' => $nextPremiere,
+            'badgeDurationSeconds' => 15, 'currentChangedBy' => 'bot-v4',
+            'currentChangeReason' => 'v4_official_wall_clock_projection', 'serverNowAtPublish' => se_iso($now),
+        ]);
+        if (($current['classification'] ?? '') === 'ARCHIVIO' && isset($current['archiveCursorAfter'])) {
+            $data['botV4ArchiveCursorCommitted'] = max(0, (int)$current['archiveCursorAfter']);
+            $data['botV4ArchiveCycleCommitted'] = max(0, (int)($current['archiveCycleAfter'] ?? 0));
+            $data['botV4ArchiveCursor'] = $data['botV4ArchiveCursorCommitted'];
+            $data['botV4ArchiveCycle'] = $data['botV4ArchiveCycleCommitted'];
+        }
+        $data['activeScheduleEngine'] = 'bot-v4';
+        return ['ok' => true, 'current' => $current, 'queue' => $queue, 'nextRatedPremiere' => $nextPremiere];
+    }
+
+    function v4_shadow_tick(array &$data, int $now, string $trigger = 'cron', bool $official = false): array {
         $history = v4_rebuild_history($data, $now);
         $catalogSignature = se_catalog_signature($data);
         $hourKey = gmdate('Y-m-d-H', $now);
-        $signature = hash('sha256', $catalogSignature . '|' . $hourKey . '|' . count($history));
+        $signature = hash('sha256', $catalogSignature . '|' . $hourKey . '|' . count($history) . '|' . ($official ? 'official' : 'shadow'));
         $state = is_array($data['botV4'] ?? null) ? $data['botV4'] : [];
         $existing = is_array($data['botV4ShadowSchedule'] ?? null) ? $data['botV4ShadowSchedule'] : [];
         $lastEnd = $existing ? se_ts((string)($existing[count($existing) - 1]['endDateTime'] ?? '')) : 0;
@@ -311,17 +421,18 @@ if (!function_exists('v4_shadow_tick')) {
             $built = v4_build_shadow_schedule($data, $now, $history);
             $schedule = $built['schedule'];
             $data['botV4ShadowSchedule'] = $schedule;
-            $data['botV4ArchiveCursor'] = $built['cursorEnd'];
-            $data['botV4ArchiveCycle'] = $built['archiveCycle'];
+            $data['botV4ArchivePlannedCursor'] = $built['cursorEnd'];
+            $data['botV4ArchivePlannedCycle'] = $built['archiveCycle'];
             $counts = ['PREMIERE' => 0, 'NOVITA' => 0, 'ARCHIVIO' => 0, 'REPLICA' => 0, 'REPLICA_INTRO' => 0, 'BLOCCATO' => 0];
             $unique = [];
             foreach ($schedule as $item) {
                 $class = (string)($item['classification'] ?? '');
                 if (isset($counts[$class])) $counts[$class]++;
+                if (!empty($item['forecastLocked'])) $counts['BLOCCATO']++;
                 if (se_video_id($item) !== '') $unique[se_video_id($item)] = true;
             }
             $meta = [
-                'mode' => 'SHADOW', 'official' => false, 'generatedAt' => se_iso($now),
+                'mode' => $official ? 'OFFICIAL' : 'SHADOW', 'official' => $official, 'generatedAt' => se_iso($now),
                 'horizonHours' => 72, 'items' => count($schedule), 'uniqueVideos' => count($unique),
                 'premieres' => $counts['PREMIERE'], 'novita' => $counts['NOVITA'],
                 'archive' => $counts['ARCHIVIO'], 'replicas' => $counts['REPLICA'],
@@ -338,24 +449,25 @@ if (!function_exists('v4_shadow_tick')) {
             $meta = is_array($data['botV4Meta'] ?? null) ? $data['botV4Meta'] : [];
         }
         $data['botV4'] = array_merge($state, [
-            'engineVersion' => 4, 'mode' => 'SHADOW', 'enabled' => true,
-            'status' => $schedule ? 'SIMULATING' : 'NO_PROGRAMME',
+            'engineVersion' => 4, 'mode' => $official ? 'OFFICIAL' : 'SHADOW', 'enabled' => true,
+            'status' => $schedule ? ($official ? 'ON_AIR' : 'SIMULATING') : 'NO_PROGRAMME',
             'lastTickAt' => se_iso($now), 'lastTrigger' => $trigger,
             'lastRebuilt' => $rebuild, 'signature' => $signature,
-            'notice' => 'Simulazione isolata: il Bot V4 non controlla ancora la diretta.',
+            'notice' => $official ? 'Bot V4 ufficiale attivo su Live Web 1.' : 'Simulazione isolata: il Bot V4 non controlla ancora la diretta.',
         ]);
-        return ['ok' => !empty($schedule), 'rebuilt' => $rebuild, 'state' => $data['botV4'], 'meta' => $meta];
+        $publication = $official ? v4_publish_official($data, $now) : null;
+        return ['ok' => !empty($schedule) && (!$official || !empty($publication['ok'])), 'rebuilt' => $rebuild, 'state' => $data['botV4'], 'meta' => $meta, 'publication' => $publication];
     }
 
     function v4_shadow_status(array $data, int $now): array {
         return [
-            'ok' => true, 'engineVersion' => 4, 'mode' => 'SHADOW', 'official' => false,
+            'ok' => true, 'engineVersion' => 4, 'mode' => (string)($data['botV4']['mode'] ?? 'SHADOW'), 'official' => !empty($data['botV4Meta']['official']),
             'state' => is_array($data['botV4'] ?? null) ? $data['botV4'] : [],
             'meta' => is_array($data['botV4Meta'] ?? null) ? $data['botV4Meta'] : [],
             'schedule' => is_array($data['botV4ShadowSchedule'] ?? null) ? $data['botV4ShadowSchedule'] : [],
             'historyCount' => count(is_array($data['botV4History'] ?? null) ? $data['botV4History'] : []),
             'serverNow' => se_iso($now),
-            'notice' => 'Il V4 è in simulazione e non modifica il palinsesto ufficiale V3.',
+            'notice' => !empty($data['botV4Meta']['official']) ? 'Il Bot V4 è il motore ufficiale di Live Web 1.' : 'Il V4 è in simulazione e non modifica il palinsesto ufficiale V3.',
         ];
     }
 }

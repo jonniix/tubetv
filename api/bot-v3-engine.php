@@ -348,7 +348,7 @@ if (!function_exists('v3_tick')) {
         $webLiveChannels = ml_tick_all($data, $now);
         // V4 osserva lo stesso catalogo aggiornato dal cron, ma scrive soltanto
         // campi botV4*: nessuna coda o voce ufficiale viene sostituita.
-        $botV4Shadow = v4_shadow_tick($data, $now, $trigger);
+        $botV4Shadow = v4_shadow_tick($data, $now, $trigger, true);
         $data['version'] = (string)((int)round(microtime(true) * 1000));
         $data['lastBotPublishAt'] = se_iso($now);
         return ['ok' => $currentId !== '', 'changed' => $changed, 'rebuilt' => $rebuilt, 'futureRebuilt' => $futureRebuilt, 'catalogSync' => $catalogSync, 'audioVerification' => $audioVerification, 'webLiveChannels' => $webLiveChannels, 'botV4Shadow' => $botV4Shadow, 'state' => $state, 'current' => $currentId !== '' ? v3_compact_item($current) : null, 'queue' => $queue];
