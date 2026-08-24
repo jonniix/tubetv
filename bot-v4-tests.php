@@ -39,6 +39,8 @@ $fresh = array_values(array_filter($built['schedule'], static fn($item): bool =>
 v4t_assert(count($fresh) === 3, 'A fresh video must have exactly three eligible passes in the test horizon.');
 v4t_assert(($fresh[0]['classification'] ?? '') === 'PREMIERE', 'First fresh airing must be PREMIERE.');
 v4t_assert(($fresh[1]['classification'] ?? '') === 'NOVITA' && ($fresh[2]['classification'] ?? '') === 'NOVITA', 'Second and third fresh airings must be NOVITA.');
+v4t_assert(se_ts($fresh[1]['startDateTime']) - se_ts($fresh[0]['startDateTime']) >= 12 * 3600, 'Fresh repeats must be separated by at least twelve hours.');
+v4t_assert(se_ts($fresh[2]['startDateTime']) - se_ts($fresh[1]['startDateTime']) >= 12 * 3600, 'Every fresh repeat must respect the cooldown.');
 $archiveItems = array_values(array_filter($built['schedule'], static fn($item): bool => ($item['strategy'] ?? '') === 'v4_archivio'));
 v4t_assert(se_video_id($archiveItems[0] ?? []) === 'archive-oldest', 'Archive must start from the oldest eligible item.');
 v4t_assert(($archiveItems[0]['classification'] ?? '') === 'PRIMA_TV', 'An older video never aired by TubeTV must be labelled PRIMA_TV.');
@@ -68,6 +70,14 @@ $history = v4_rebuild_history($historyData, $now);
 v4t_assert(count($history) === 1 && se_video_id($history[0]) === 'archive-oldest', 'History must contain only completed real airings.');
 v4t_assert(v4_editorial_classification(v4t_video('old', '2025-01-01T10:00:00Z'), $now, 1) === 'REPLICA', 'An older video already aired must be labelled REPLICA.');
 v4t_assert(v4_editorial_classification(v4t_video('old-new', '2025-01-01T10:00:00Z'), $now, 0) === 'PRIMA_TV', 'An older video never aired must be labelled PRIMA_TV.');
+$safeDetail = ['status' => ['privacyStatus' => 'public', 'embeddable' => true], 'contentDetails' => [], 'snippet' => ['liveBroadcastContent' => 'none', 'defaultAudioLanguage' => 'it']];
+$ageDetail = $safeDetail;
+$ageDetail['contentDetails']['contentRating']['ytRating'] = 'ytAgeRestricted';
+v4t_assert(v4_watchdog_detail_reason($ageDetail, v4t_video('age-blocked', '2025-01-01T10:00:00Z'), null, $data, 'CH') === 'age_restricted', 'The watchdog must reject age-restricted videos.');
+$englishDetail = $safeDetail;
+$englishDetail['snippet']['defaultAudioLanguage'] = 'en';
+v4t_assert(v4_watchdog_detail_reason($englishDetail, v4t_video('english', '2025-01-01T10:00:00Z'), null, $data, 'CH') === 'italian_audio_not_guaranteed', 'The watchdog must reject a non-Italian default audio track.');
+v4t_assert(v4_watchdog_detail_reason($safeDetail, v4t_video('safe', '2025-01-01T10:00:00Z'), null, $data, 'CH') === '', 'The watchdog must accept a public embeddable Italian video.');
 
 // Sunday replay waits for the running programme, shows a 7-second slate, then replays.
 $sundayNow = strtotime('2026-08-23T15:50:00Z'); // 17:50 Europe/Zurich

@@ -9450,13 +9450,15 @@ async function refreshBotV4(){
   try{
     const response=await fetch('./api/bot-v4.php?action=status&ts='+Date.now(),{cache:'no-store'});
     const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||('HTTP '+response.status));
-    const state=data.state||{},meta=data.meta||{},items=Array.isArray(data.schedule)?data.schedule:[];
-    if(summary)summary.innerHTML=`<b style="color:#c4b5fd">${escapeHtml(state.status||'IN ATTESA')}</b> · ultimo tick ${escapeHtml(botV3Date(state.lastTickAt))} · ${escapeHtml(data.notice||'')}`;
+    const state=data.state||{},meta=data.meta||{},watchdog=data.watchdog||{},items=Array.isArray(data.schedule)?data.schedule:[];
+    if(summary)summary.innerHTML=`<b style="color:#c4b5fd">${escapeHtml(state.status||'IN ATTESA')}</b> · ultimo tick ${escapeHtml(botV3Date(state.lastTickAt))} · Watchdog <b style="color:${watchdog.status==='OK'?'#34d399':'#fbbf24'}">${escapeHtml(watchdog.status||'IN ATTESA')}</b> · ${escapeHtml(data.notice||'')}`;
     const stats=document.getElementById('bot-v4-stats');if(stats)stats.innerHTML=[
       botV3Card('Programmi previsti',meta.items||0),botV3Card('Video unici',meta.uniqueVideos||0),
       botV3Card('Premiere',meta.premieres||0,'#34d399'),botV3Card('Novità',meta.novita||0,'#22d3ee'),
-      botV3Card('Archivio',meta.archive||0,'#a78bfa'),botV3Card('Repliche domenicali',meta.replicas||0,'#fbbf24'),
-      botV3Card('Passaggi bloccati V3',meta.locked||0),botV3Card('Storico reale',meta.historyItems||data.historyCount||0)
+      botV3Card('Prima TV',meta.primaTv||0,'#a78bfa'),botV3Card('Repliche',meta.replicas||0,'#fbbf24'),
+      botV3Card('Coppie stessa fonte',meta.sameSourcePairs||0,(meta.sameSourcePairs||0)>0?'#fbbf24':'#34d399'),botV3Card('Sequenza massima',meta.maxSameSourceRun||0,(meta.maxSameSourceRun||0)>2?'#f87171':'#34d399'),
+      botV3Card('Watchdog',watchdog.status||'—',watchdog.status==='OK'?'#34d399':'#fbbf24'),botV3Card('Video respinti',watchdog.interventions||0,'#f87171'),
+      botV3Card('Passaggi bloccati',meta.locked||0),botV3Card('Storico reale',meta.historyItems||data.historyCount||0)
     ].join('');
     const cursor=document.getElementById('bot-v4-cursor');if(cursor)cursor.innerHTML=`Archivio: <b>${Number(meta.archiveSize||0)}</b> video · cursore <b>${Number(meta.archiveCursorStart||0)} → ${Number(meta.archiveCursorEnd||0)}</b> · giro <b>${Number(meta.archiveCycle||0)}</b>`;
     const box=document.getElementById('bot-v4-schedule');
@@ -9465,7 +9467,7 @@ async function refreshBotV4(){
       const header=day!==previous?`<div style="position:sticky;top:0;z-index:2;padding:.55rem .85rem;background:#111722;border-bottom:1px solid var(--border);font-weight:700;">${escapeHtml(start.toLocaleDateString('it-IT',{weekday:'long',day:'2-digit',month:'long'}))}</div>`:'';
       return`${header}<article style="display:grid;grid-template-columns:68px minmax(0,1fr) auto;gap:.75rem;align-items:center;padding:.72rem .85rem;border-bottom:1px solid var(--border);"><b>${escapeHtml(start.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}))}</b><div><strong>${escapeHtml(item.title||'Momento Replica')}</strong><div style="font-size:.72rem;color:var(--muted);margin-top:.25rem;">${escapeHtml(item.channel||item.channelTitle||'TubeTV')} · ${escapeHtml(item.slotName||'')} · ${escapeHtml(item.reason||'')}</div></div><div style="text-align:right;">${botV4Badge(item)}<div style="font-size:.68rem;color:var(--muted);margin-top:.3rem;">score ${Number(item.finalScore||0).toFixed(0)}</div></div></article>`;
     }).join(''):'<div style="padding:1rem;color:var(--muted);">Il primo tick ufficiale creerà la simulazione senza modificare la diretta.</div>';
-    const diagnostics=document.getElementById('bot-v4-diagnostics');if(diagnostics)diagnostics.textContent=JSON.stringify({serverNow:data.serverNow,state,meta},null,2);
+    const diagnostics=document.getElementById('bot-v4-diagnostics');if(diagnostics)diagnostics.textContent=JSON.stringify({serverNow:data.serverNow,state,meta,watchdog},null,2);
   }catch(error){if(summary)summary.innerHTML=`<span style="color:#f87171">Errore simulazione V4: ${escapeHtml(error.message)}</span>`;}
 }
 function setBotV4Refresh(active){clearInterval(_botV4Timer);_botV4Timer=null;if(active){refreshBotV4();_botV4Timer=setInterval(refreshBotV4,15000)}}

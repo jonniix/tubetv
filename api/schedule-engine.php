@@ -425,9 +425,10 @@ if (!function_exists('se_iso')) {
                 $embeddable = ($status['embeddable'] ?? true) !== false;
                 $regionOk = se_region_allowed(['regionRestriction' => $content['regionRestriction'] ?? []], $country);
                 $broadcast = strtolower((string)($snippet['liveBroadcastContent'] ?? 'none'));
+                $ageRestricted = strtolower((string)($content['contentRating']['ytRating'] ?? '')) === 'ytagerestricted';
                 se_set_video_localized_title($data, $id, (string)($snippet['title'] ?? ''), (string)($snippet['localized']['title'] ?? ''));
-                $available = $privacy === 'public' && $embeddable && $regionOk && ($broadcast === '' || $broadcast === 'none');
-                $reason = $privacy !== 'public' ? 'private_or_deleted' : (!$embeddable ? 'embedding_disabled' : (!$regionOk ? 'blocked_in_' . strtolower($country) : 'live_or_upcoming'));
+                $available = $privacy === 'public' && $embeddable && $regionOk && !$ageRestricted && ($broadcast === '' || $broadcast === 'none');
+                $reason = $privacy !== 'public' ? 'private_or_deleted' : (!$embeddable ? 'embedding_disabled' : (!$regionOk ? 'blocked_in_' . strtolower($country) : ($ageRestricted ? 'age_restricted' : 'live_or_upcoming')));
             }
             se_set_video_availability($data, $id, $available, $available ? 'ok' : $reason, $now);
             if ($available && $before === 'unavailable') $restored++;
@@ -985,7 +986,7 @@ if (!function_exists('se_iso')) {
         $profile = se_bot_profile($data);
         if ($duration < $profile['minDurationMinutes'] * 60 || $duration > $profile['maxDurationMinutes'] * 60) return false;
         if (strpos($title, '#shorts') !== false || strpos($title, 'shorts') !== false) return false;
-        if (!empty($video['isLive']) || !empty($video['isShort']) || !empty($video['isPrivate']) || !empty($video['isUnavailable']) || !empty($video['regionBlocked']) || !empty($video['broken']) || !empty($video['isBroken'])) return false;
+        if (!empty($video['isLive']) || !empty($video['isShort']) || !empty($video['isPrivate']) || !empty($video['isUnavailable']) || !empty($video['regionBlocked']) || !empty($video['ageRestricted']) || !empty($video['broken']) || !empty($video['isBroken'])) return false;
         if (isset($video['embeddable']) && $video['embeddable'] === false) return false;
         if (isset($video['youtubePlayableInCH']) && $video['youtubePlayableInCH'] === false) return false;
         $country = strtoupper(trim((string)($data['settings']['playbackCountry'] ?? $data['settings']['countryCode'] ?? 'CH'))) ?: 'CH';
