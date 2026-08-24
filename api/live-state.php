@@ -46,6 +46,7 @@ $personalAnchorAt = $rewindStation ? max(0, (int)($_GET['anchorAt'] ?? 0)) : 0;
 $station = $secondary && is_array($data['webLiveChannels'][$stationId] ?? null)
     ? $data['webLiveChannels'][$stationId]
     : [];
+$rewindQueueLength = $rewindStation ? max(0, (int)($station['eligibleVideoCount'] ?? 0)) : 0;
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'schedule-engine.php';
 if (!$secondary && function_exists('se_ensure_daily_schedule')) {
     // Read-time fallback: a viewer still receives today's deterministic
@@ -145,6 +146,7 @@ echo json_encode([
     'projected' => $projected,
     'rewindChannel' => $rewindStation,
     'personalSkip' => $personalSkip,
+    'rewindQueueLength' => $rewindQueueLength,
     'serverNow' => gmdate('Y-m-d\TH:i:s', $now) . '.000Z',
     'liveState' => $state,
     'liveQueue' => $queue,
