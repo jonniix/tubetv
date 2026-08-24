@@ -1357,10 +1357,11 @@ const MOBILE_WEB_LIVE_DEFINITIONS = {
   cucina: {name:'Live Cucina',logo:'icons/live-cucina.svg'},
   girl: {name:'Live Girl',logo:'icons/live-girl.svg'},
   rewind24: {name:'Rewind 24h',logo:'icons/live-rewind-24.svg'},
+  rewind3: {name:'Rewind 3',logo:'icons/live-rewind-3.svg'},
   rewind7: {name:'Rewind 7',logo:'icons/live-rewind-7.svg'},
   rewind30: {name:'Rewind 30',logo:'icons/live-rewind-30.svg'}
 };
-const MOBILE_REWIND_IDS=new Set(['rewind24','rewind7','rewind30']);
+const MOBILE_REWIND_IDS=new Set(['rewind24','rewind3','rewind7','rewind30']);
 let mobileRewindAdvancePending=false;
 function getMobileRewindAnchor(id=mobileActiveWebLiveId){try{return String(sessionStorage.getItem('tutv_mobile_rewind_anchor_'+id)||'')}catch(e){return ''}}
 function getMobileRewindAnchorAt(id=mobileActiveWebLiveId){try{return Math.max(0,Number(sessionStorage.getItem('tutv_mobile_rewind_anchor_at_'+id)||0)||0)}catch(e){return 0}}

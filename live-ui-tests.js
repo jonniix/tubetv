@@ -10,7 +10,7 @@ function check(condition, message) {
 check(html.includes('const displayItems=queue.slice(0,3);'), 'the live sidebar is not limited to three items');
 check(html.includes('function openTodayProgrammeGuide()'), 'the complete daily guide is missing');
 check(html.includes('getSchedulePublication(item)'), 'publication dates are missing from the daily guide');
-check(html.includes("rewind24:{name:'Rewind 24h'") && html.includes("rewind7:{name:'Rewind 7'") && html.includes("rewind30:{name:'Rewind 30'"), 'desktop Rewind channels are missing');
+check(html.includes("rewind24:{name:'Rewind 24h'") && html.includes("rewind3:{name:'Rewind 3'") && html.includes("rewind7:{name:'Rewind 7'") && html.includes("rewind30:{name:'Rewind 30'"), 'desktop Rewind channels are missing');
 check(html.includes('function skipRewindVideo()') && html.includes("'&anchor='") && html.includes("'&advance='"), 'personal Rewind skip is not connected to live-state');
 
 check(html.includes('function getLiveNowMs(){'), 'the server-aligned clock helper is missing');

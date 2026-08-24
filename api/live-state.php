@@ -31,14 +31,14 @@ function live_state_duration(array $item): int {
 
 $now = time();
 $stationId = strtolower(trim((string)($_GET['channel'] ?? 'main')));
-$allowedStations = ['main', 'live2', 'kids', 'crime', 'docu', 'cucina', 'girl', 'rewind24', 'rewind7', 'rewind30'];
+$allowedStations = ['main', 'live2', 'kids', 'crime', 'docu', 'cucina', 'girl', 'rewind24', 'rewind3', 'rewind7', 'rewind30'];
 if (!in_array($stationId, $allowedStations, true)) {
     http_response_code(404);
     echo json_encode(['ok' => false, 'error' => 'LIVE_CHANNEL_NOT_FOUND']);
     exit;
 }
 $secondary = $stationId !== 'main';
-$rewindStation = in_array($stationId, ['rewind24', 'rewind7', 'rewind30'], true);
+$rewindStation = in_array($stationId, ['rewind24', 'rewind3', 'rewind7', 'rewind30'], true);
 $personalSkip = $rewindStation ? max(0, min(250, (int)($_GET['skip'] ?? 0))) : 0;
 $personalAnchor = $rewindStation ? trim((string)($_GET['anchor'] ?? '')) : '';
 $personalAdvance = $rewindStation && (int)($_GET['advance'] ?? 0) === 1;

@@ -79,9 +79,11 @@ ml_check(($stations['kids']['liveState']['status'] ?? '') === 'NO_SOURCES', 'emp
 
 // Rewind stations use every active source and enforce their publication window.
 $rewind24 = $stations['rewind24'];
+$rewind3 = $stations['rewind3'];
 $rewind7 = $stations['rewind7'];
 $rewind30 = $stations['rewind30'];
 ml_check(($rewind24['eligibleVideoCount'] ?? -1) === 1, 'Rewind 24h did not enforce the 24-hour window');
+ml_check(($rewind3['eligibleVideoCount'] ?? -1) === 2, 'Rewind 3 did not enforce the 72-hour window');
 ml_check(($rewind7['eligibleVideoCount'] ?? -1) === 3, 'Rewind 7 did not enforce the seven-day window');
 ml_check(($rewind30['eligibleVideoCount'] ?? -1) === 5, 'Rewind 30 did not enforce the 30-day window');
 ml_check(($rewind24['liveQueue'][0]['videoId'] ?? '') === 'crimeA00001', 'Rewind 24h did not start from the newest eligible upload');

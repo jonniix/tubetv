@@ -20,6 +20,7 @@ if (!function_exists('ml_definitions')) {
             'cucina' => ['id' => 'cucina', 'name' => 'Live Cucina', 'shortName' => 'Live Cucina'],
             'girl' => ['id' => 'girl', 'name' => 'Live Girl', 'shortName' => 'Live Girl'],
             'rewind24' => ['id' => 'rewind24', 'name' => 'Rewind 24h', 'shortName' => 'Rewind 24h', 'type' => 'rewind', 'windowHours' => 24],
+            'rewind3' => ['id' => 'rewind3', 'name' => 'Rewind 3', 'shortName' => 'Rewind 3 giorni', 'type' => 'rewind', 'windowHours' => 72],
             'rewind7' => ['id' => 'rewind7', 'name' => 'Rewind 7', 'shortName' => 'Rewind 7 giorni', 'type' => 'rewind', 'windowHours' => 168],
             'rewind30' => ['id' => 'rewind30', 'name' => 'Rewind 30', 'shortName' => 'Rewind 30 giorni', 'type' => 'rewind', 'windowHours' => 720],
         ];

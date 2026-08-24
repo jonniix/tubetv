@@ -1895,6 +1895,7 @@ nav { z-index:800 !important; }
         <button class="live-channel-tab" data-live-channel="cucina" onclick="selectWebLiveChannel('cucina')">Live Cucina</button>
         <button class="live-channel-tab" data-live-channel="girl" onclick="selectWebLiveChannel('girl')">Live Girl</button>
         <button class="live-channel-tab" data-live-channel="rewind24" onclick="selectWebLiveChannel('rewind24')">Rewind 24h</button>
+        <button class="live-channel-tab" data-live-channel="rewind3" onclick="selectWebLiveChannel('rewind3')">Rewind 3</button>
         <button class="live-channel-tab" data-live-channel="rewind7" onclick="selectWebLiveChannel('rewind7')">Rewind 7</button>
         <button class="live-channel-tab" data-live-channel="rewind30" onclick="selectWebLiveChannel('rewind30')">Rewind 30</button>
       </div>
@@ -2354,10 +2355,11 @@ const WEB_LIVE_DEFINITIONS={
   cucina:{name:'Live Cucina',logo:'icons/live-cucina.svg',description:'Ricette, chef e cultura gastronomica in rotazione continua 24/7.'},
   girl:{name:'Live Girl',logo:'icons/live-girl.svg',description:'Creator, lifestyle e intrattenimento in una rotazione continua 24/7.'},
   rewind24:{name:'Rewind 24h',logo:'icons/live-rewind-24.svg',description:'Loop personale di tutti i video pubblicati nelle ultime 24 ore. Le novita entrano subito come prossimo contenuto.'},
+  rewind3:{name:'Rewind 3',logo:'icons/live-rewind-3.svg',description:'Loop personale dei video pubblicati nelle ultime 72 ore, dal piu recente al meno recente.'},
   rewind7:{name:'Rewind 7',logo:'icons/live-rewind-7.svg',description:'Loop personale dei video degli ultimi 7 giorni, dal piu recente al meno recente.'},
   rewind30:{name:'Rewind 30',logo:'icons/live-rewind-30.svg',description:'Loop personale dei video degli ultimi 30 giorni, con salto libero tra i contenuti.'}
 };
-const REWIND_LIVE_IDS=new Set(['rewind24','rewind7','rewind30']);
+const REWIND_LIVE_IDS=new Set(['rewind24','rewind3','rewind7','rewind30']);
 let rewindAdvancePending=false;
 function getRewindAnchor(id=activeWebLiveId){try{return String(sessionStorage.getItem('tubetv_rewind_anchor_'+id)||'')}catch(e){return ''}}
 function getRewindAnchorAt(id=activeWebLiveId){try{return Math.max(0,Number(sessionStorage.getItem('tubetv_rewind_anchor_at_'+id)||0)||0)}catch(e){return 0}}
