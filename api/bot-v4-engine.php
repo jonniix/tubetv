@@ -449,7 +449,7 @@ if (!function_exists('v4_shadow_tick')) {
         $history = v4_rebuild_history($data, $now);
         $catalogSignature = se_catalog_signature($data);
         $hourKey = gmdate('Y-m-d-H', $now);
-        $signature = hash('sha256', $catalogSignature . '|' . $hourKey . '|' . count($history) . '|' . ($official ? 'official' : 'shadow'));
+        $signature = hash('sha256', $catalogSignature . '|' . $hourKey . '|' . count($history) . '|editorial-v2|' . ($official ? 'official' : 'shadow'));
         $state = is_array($data['botV4'] ?? null) ? $data['botV4'] : [];
         $existing = is_array($data['botV4ShadowSchedule'] ?? null) ? $data['botV4ShadowSchedule'] : [];
         $lastEnd = $existing ? se_ts((string)($existing[count($existing) - 1]['endDateTime'] ?? '')) : 0;
