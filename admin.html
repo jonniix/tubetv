@@ -9460,7 +9460,7 @@ async function refreshBotV4(){
       botV3Card('Watchdog',watchdog.status||'—',watchdog.status==='OK'?'#34d399':'#fbbf24'),botV3Card('Video respinti',watchdog.interventions||0,'#f87171'),
       botV3Card('Passaggi bloccati',meta.locked||0),botV3Card('Storico reale',meta.historyItems||data.historyCount||0)
     ].join('');
-    const cursor=document.getElementById('bot-v4-cursor');if(cursor)cursor.innerHTML=`Archivio: <b>${Number(meta.archiveSize||0)}</b> video · cursore <b>${Number(meta.archiveCursorStart||0)} → ${Number(meta.archiveCursorEnd||0)}</b> · giro <b>${Number(meta.archiveCycle||0)}</b>`;
+    const cursor=document.getElementById('bot-v4-cursor');if(cursor)cursor.innerHTML=`Archivio: <b>${Number(meta.archiveSize||0)}</b> video · cursori separati per <b>${Number(meta.archiveSourceCount||0)}</b> fonti · avanzamento <b>${Number(meta.archiveCursorStart||0)} → ${Number(meta.archiveCursorEnd||0)}</b>`;
     const box=document.getElementById('bot-v4-schedule');
     if(box)box.innerHTML=items.length?items.map((item,index)=>{
       const start=new Date(item.startDateTime),day=botV3FutureDayKey(item.startDateTime),previous=index?botV3FutureDayKey(items[index-1].startDateTime):'';

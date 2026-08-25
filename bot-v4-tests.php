@@ -44,7 +44,24 @@ v4t_assert(se_ts($fresh[2]['startDateTime']) - se_ts($fresh[1]['startDateTime'])
 $archiveItems = array_values(array_filter($built['schedule'], static fn($item): bool => ($item['strategy'] ?? '') === 'v4_archivio'));
 v4t_assert(se_video_id($archiveItems[0] ?? []) === 'archive-oldest', 'Archive must start from the oldest eligible item.');
 v4t_assert(($archiveItems[0]['classification'] ?? '') === 'PRIMA_TV', 'An older video never aired by TubeTV must be labelled PRIMA_TV.');
-v4t_assert($built['cursorEnd'] !== $built['cursorStart'] || $built['archiveCycle'] > 0, 'Global archive cursor must advance.');
+v4t_assert(($built['sourceCursorsEnd']['source-1'] ?? 0) !== ($built['sourceCursorsStart']['source-1'] ?? 0) || ($built['sourceCyclesEnd']['source-1'] ?? 0) > 0, 'The per-source archive cursor must advance.');
+
+// Each source owns its chronological cursor, even when other sources are interleaved.
+$multi = v4t_data([]);
+$multi['channels'] = [
+    ['id' => 'source-a', 'name' => 'Fonte A', 'active' => true, 'rating' => 8],
+    ['id' => 'source-b', 'name' => 'Fonte B', 'active' => true, 'rating' => 8],
+];
+$multi['slots'][0]['channelIds'] = ['source-a', 'source-b'];
+$multi['videos'] = [
+    array_merge(v4t_video('a-old', '2024-09-01T10:00:00Z'), ['channelId' => 'source-a', 'channel' => 'Fonte A']),
+    array_merge(v4t_video('b-old', '2024-09-02T10:00:00Z'), ['channelId' => 'source-b', 'channel' => 'Fonte B']),
+    array_merge(v4t_video('a-new', '2024-10-01T10:00:00Z'), ['channelId' => 'source-a', 'channel' => 'Fonte A']),
+    array_merge(v4t_video('b-new', '2024-10-02T10:00:00Z'), ['channelId' => 'source-b', 'channel' => 'Fonte B']),
+];
+$multiBuilt = v4_build_shadow_schedule($multi, $now, []);
+$sourceA = array_values(array_filter($multiBuilt['schedule'], static fn($item): bool => ($item['archiveSourceKey'] ?? '') === 'source-a'));
+v4t_assert(se_video_id($sourceA[0] ?? []) === 'a-old' && se_video_id($sourceA[1] ?? []) === 'a-new', 'A source archive must advance from its oldest video to the next one.');
 
 // Official mode publishes V4 as the only authority for Live Web 1.
 $officialData = $data;

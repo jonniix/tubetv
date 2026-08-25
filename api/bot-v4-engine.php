@@ -208,35 +208,56 @@ if (!function_exists('v4_shadow_tick')) {
         return $out;
     }
 
-    function v4_pick_archive(array $archive, array $allowedChannels, array $data, int &$cursor, int &$cycle, array &$used, string $blockedSource = ''): ?array {
-        $count = count($archive);
-        if ($count === 0) return null;
+    function v4_pick_archive(array $archive, array $allowedChannels, array $data, array &$sourceCursors, array &$sourceCycles, array &$used, string $blockedSource = ''): ?array {
+        if (!$archive) return null;
         $channelMap = v4_channel_map($allowedChannels);
-        $start = (($cursor % $count) + $count) % $count;
-        $find = static function (bool $respectUsed, int $scoreBase) use ($archive, $channelMap, $data, $used, $blockedSource, $start, $count): ?array {
-            $fallback = null;
-            for ($step = 0; $step < $count; $step++) {
-                $index = ($start + $step) % $count;
-                $video = $archive[$index];
-                $channel = v4_video_channel($video, $channelMap);
-                if (!$channel || ($respectUsed && isset($used[se_video_id($video)])) || !se_is_playable($video, $channel, $data)) continue;
-                $candidate = ['video' => $video, 'channel' => $channel, 'score' => $scoreBase - $step, 'archiveIndex' => $index];
-                if ($fallback === null) $fallback = $candidate;
-                if ($blockedSource === '' || v4_source_key($video, $channel) !== $blockedSource) return $candidate;
-            }
-            return $fallback;
-        };
-        $picked = $find(true, 1000);
-        // If every compatible archive item has already been used, begin a new
-        // rotation rather than leaving a hole in the linear schedule.
-        if (!$picked && $used) {
-            $used = [];
-            $cycle++;
-            $picked = $find(false, 900);
+        $buckets = [];
+        foreach ($archive as $globalIndex => $video) {
+            $channel = v4_video_channel($video, $channelMap);
+            if (!$channel || !se_is_playable($video, $channel, $data)) continue;
+            $sourceKey = v4_source_key($video, $channel);
+            if ($sourceKey === '') continue;
+            $buckets[$sourceKey][] = ['video' => $video, 'channel' => $channel, 'archiveIndex' => $globalIndex];
         }
+        $candidates = [];
+        foreach ($buckets as $sourceKey => $items) {
+            $count = count($items);
+            $start = max(0, (int)($sourceCursors[$sourceKey] ?? 0)) % $count;
+            $picked = null;
+            for ($step = 0; $step < $count; $step++) {
+                $position = ($start + $step) % $count;
+                if (isset($used[se_video_id($items[$position]['video'])])) continue;
+                $picked = array_merge($items[$position], ['sourcePosition' => $position, 'sourceStep' => $step, 'sourceCount' => $count]);
+                break;
+            }
+            if ($picked === null) {
+                $position = $start;
+                $picked = array_merge($items[$position], ['sourcePosition' => $position, 'sourceStep' => $count, 'sourceCount' => $count, 'sourceWrapped' => true]);
+            }
+            $picked['sourceKey'] = $sourceKey;
+            $candidates[] = $picked;
+        }
+        if ($blockedSource !== '') {
+            $alternatives = array_values(array_filter($candidates, static fn($candidate): bool => ($candidate['sourceKey'] ?? '') !== $blockedSource));
+            if ($alternatives) $candidates = $alternatives;
+        }
+        usort($candidates, static function ($a, $b): int {
+            $byDate = v4_publication_ts($a['video']) <=> v4_publication_ts($b['video']);
+            return $byDate !== 0 ? $byDate : strcmp((string)$a['sourceKey'], (string)$b['sourceKey']);
+        });
+        $picked = $candidates[0] ?? null;
         if (!$picked) return null;
-        $cursor = ((int)$picked['archiveIndex'] + 1) % $count;
-        return array_merge($picked, ['cursorAfter' => $cursor, 'cycleAfter' => $cycle]);
+        $sourceKey = (string)$picked['sourceKey'];
+        $count = max(1, (int)$picked['sourceCount']);
+        $cursorAfter = ((int)$picked['sourcePosition'] + 1) % $count;
+        $cycleAfter = max(0, (int)($sourceCycles[$sourceKey] ?? 0));
+        if ($cursorAfter === 0 || !empty($picked['sourceWrapped'])) $cycleAfter++;
+        $sourceCursors[$sourceKey] = $cursorAfter;
+        $sourceCycles[$sourceKey] = $cycleAfter;
+        return array_merge($picked, [
+            'score' => 1000 - min(100, (int)$picked['sourceStep']),
+            'sourceCursorAfter' => $cursorAfter, 'sourceCycleAfter' => $cycleAfter,
+        ]);
     }
 
     function v4_replay_candidates(array $history, array $schedule, int $weekStart, int $replayStart): array {
@@ -351,9 +372,10 @@ if (!function_exists('v4_shadow_tick')) {
         $channels = se_active_channels($data);
         $historyStats = v4_history_stats($history);
         $archive = v4_archive_pool($pool, $now);
-        $cursorStart = max(0, (int)($data['botV4ArchiveCursorCommitted'] ?? $data['botV4ArchiveCursor'] ?? 0));
-        $archiveCursor = $archive ? $cursorStart % count($archive) : 0;
-        $archiveCycle = max(0, (int)($data['botV4ArchiveCycleCommitted'] ?? $data['botV4ArchiveCycle'] ?? 0));
+        $sourceCursorsStart = is_array($data['botV4ArchiveSourceCursorsCommitted'] ?? null) ? $data['botV4ArchiveSourceCursorsCommitted'] : [];
+        $sourceCyclesStart = is_array($data['botV4ArchiveSourceCyclesCommitted'] ?? null) ? $data['botV4ArchiveSourceCyclesCommitted'] : [];
+        $sourceCursors = $sourceCursorsStart;
+        $sourceCycles = $sourceCyclesStart;
         $schedule = [];
         $simUses = [];
         $lastScheduled = [];
@@ -436,7 +458,7 @@ if (!function_exists('v4_shadow_tick')) {
                 $item = v4_make_item($ratedVideo, $clock, $classification, $fresh['score'], $slot, $reason);
                 $simUses[$id] = ($simUses[$id] ?? 0) + 1;
             } else {
-                $picked = v4_pick_archive($archive, $allowedChannels, $data, $archiveCursor, $archiveCycle, $archiveUsed, $blockedSource);
+                $picked = v4_pick_archive($archive, $allowedChannels, $data, $sourceCursors, $sourceCycles, $archiveUsed, $blockedSource);
                 if (!$picked) { $clock = max($clock + 60, (int)$window['end']); continue; }
                 $id = se_video_id($picked['video']);
                 $archiveUsed[$id] = true;
@@ -449,8 +471,10 @@ if (!function_exists('v4_shadow_tick')) {
                 $item = v4_make_item($ratedVideo, $clock, $classification, $picked['score'], $slot, $reason);
                 $item['strategy'] = 'v4_archivio';
                 $item['archiveIndex'] = (int)$picked['archiveIndex'];
-                $item['archiveCursorAfter'] = (int)$picked['cursorAfter'];
-                $item['archiveCycleAfter'] = (int)$picked['cycleAfter'];
+                $item['archiveSourceKey'] = (string)$picked['sourceKey'];
+                $item['archiveSourcePosition'] = (int)$picked['sourcePosition'];
+                $item['archiveSourceCursorAfter'] = (int)$picked['sourceCursorAfter'];
+                $item['archiveSourceCycleAfter'] = (int)$picked['sourceCycleAfter'];
                 $simUses[$id] = ($simUses[$id] ?? 0) + 1;
             }
             $schedule[] = $item;
@@ -459,7 +483,11 @@ if (!function_exists('v4_shadow_tick')) {
             if ($itemSource !== '' && $itemSource === $lastSource) $sourceRun++; else { $lastSource = $itemSource; $sourceRun = $itemSource === '' ? 0 : 1; }
             $clock = se_ts($item['endDateTime']);
         }
-        return ['schedule' => $schedule, 'cursorStart' => $cursorStart, 'cursorEnd' => $archiveCursor, 'archiveCycle' => $archiveCycle, 'archiveSize' => count($archive)];
+        return [
+            'schedule' => $schedule, 'archiveSize' => count($archive),
+            'sourceCursorsStart' => $sourceCursorsStart, 'sourceCursorsEnd' => $sourceCursors,
+            'sourceCyclesStart' => $sourceCyclesStart, 'sourceCyclesEnd' => $sourceCycles,
+        ];
     }
 
     function v4_next_rated_premiere(array $data, array $schedule, int $now): ?array {
@@ -561,7 +589,13 @@ if (!function_exists('v4_shadow_tick')) {
             'badgeDurationSeconds' => 15, 'currentChangedBy' => 'bot-v4',
             'currentChangeReason' => 'v4_official_wall_clock_projection', 'serverNowAtPublish' => se_iso($now),
         ]);
-        if (isset($current['archiveCursorAfter'])) {
+        if (!empty($current['archiveSourceKey']) && isset($current['archiveSourceCursorAfter'])) {
+            $sourceKey = (string)$current['archiveSourceKey'];
+            $data['botV4ArchiveSourceCursorsCommitted'] = is_array($data['botV4ArchiveSourceCursorsCommitted'] ?? null) ? $data['botV4ArchiveSourceCursorsCommitted'] : [];
+            $data['botV4ArchiveSourceCyclesCommitted'] = is_array($data['botV4ArchiveSourceCyclesCommitted'] ?? null) ? $data['botV4ArchiveSourceCyclesCommitted'] : [];
+            $data['botV4ArchiveSourceCursorsCommitted'][$sourceKey] = max(0, (int)$current['archiveSourceCursorAfter']);
+            $data['botV4ArchiveSourceCyclesCommitted'][$sourceKey] = max(0, (int)($current['archiveSourceCycleAfter'] ?? 0));
+        } elseif (isset($current['archiveCursorAfter'])) {
             $data['botV4ArchiveCursorCommitted'] = max(0, (int)$current['archiveCursorAfter']);
             $data['botV4ArchiveCycleCommitted'] = max(0, (int)($current['archiveCycleAfter'] ?? 0));
             $data['botV4ArchiveCursor'] = $data['botV4ArchiveCursorCommitted'];
@@ -578,7 +612,7 @@ if (!function_exists('v4_shadow_tick')) {
             : v4_watchdog_check($data, $now, in_array($trigger, ['sync_sources', 'force_rebuild_queue'], true));
         $catalogSignature = se_catalog_signature($data);
         $hourKey = gmdate('Y-m-d-H', $now);
-        $signature = hash('sha256', $catalogSignature . '|' . $hourKey . '|' . count($history) . '|rotation-v3|' . ($official ? 'official' : 'shadow'));
+        $signature = hash('sha256', $catalogSignature . '|' . $hourKey . '|' . count($history) . '|source-cursors-v4|' . ($official ? 'official' : 'shadow'));
         $state = is_array($data['botV4'] ?? null) ? $data['botV4'] : [];
         $existing = is_array($data['botV4ShadowSchedule'] ?? null) ? $data['botV4ShadowSchedule'] : [];
         $lastEnd = $existing ? se_ts((string)($existing[count($existing) - 1]['endDateTime'] ?? '')) : 0;
@@ -587,8 +621,8 @@ if (!function_exists('v4_shadow_tick')) {
             $built = v4_build_shadow_schedule($data, $now, $history);
             $schedule = $built['schedule'];
             $data['botV4ShadowSchedule'] = $schedule;
-            $data['botV4ArchivePlannedCursor'] = $built['cursorEnd'];
-            $data['botV4ArchivePlannedCycle'] = $built['archiveCycle'];
+            $data['botV4ArchiveSourceCursorsPlanned'] = $built['sourceCursorsEnd'];
+            $data['botV4ArchiveSourceCyclesPlanned'] = $built['sourceCyclesEnd'];
             $counts = ['PREMIERE' => 0, 'NOVITA' => 0, 'PRIMA_TV' => 0, 'REPLICA' => 0, 'REPLICA_INTRO' => 0, 'BLOCCATO' => 0, 'ARCHIVE_ITEMS' => 0];
             $unique = [];
             $sameSourcePairs = 0;
@@ -613,8 +647,11 @@ if (!function_exists('v4_shadow_tick')) {
                 'archive' => $counts['ARCHIVE_ITEMS'], 'replicas' => $counts['REPLICA'],
                 'replayIntros' => $counts['REPLICA_INTRO'], 'locked' => $counts['BLOCCATO'],
                 'historyItems' => count($history), 'archiveSize' => $built['archiveSize'],
-                'archiveCursorStart' => $built['cursorStart'], 'archiveCursorEnd' => $built['cursorEnd'],
-                'archiveCycle' => $built['archiveCycle'], 'maxFreshAirings' => 3,
+                'archiveCursorMode' => 'per_source',
+                'archiveSourceCount' => count($built['sourceCursorsEnd']),
+                'archiveCursorStart' => array_sum(array_map('intval', $built['sourceCursorsStart'])),
+                'archiveCursorEnd' => array_sum(array_map('intval', $built['sourceCursorsEnd'])),
+                'archiveCycle' => array_sum(array_map('intval', $built['sourceCyclesEnd'])), 'maxFreshAirings' => 3,
                 'freshWindowHours' => 72, 'archiveLookbackYears' => 2,
                 'freshRepeatCooldownHours' => 12, 'maxConsecutiveSource' => 2,
                 'sameSourcePairs' => $sameSourcePairs, 'maxSameSourceRun' => $maxSameSourceRun,
