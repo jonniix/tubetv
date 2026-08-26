@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check public/host.js && node --check public/viewer.js"
+    "check": "node --check server.js && node --check public/host.js && node --check public/viewer.js",
+    "test:signaling": "node tests/signaling.test.js"
   },
   "dependencies": {
     "express": "^5.1.0",

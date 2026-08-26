@@ -22,4 +22,10 @@ Il video usa WebRTC cifrato. Il server serve esclusivamente pairing e segnalazio
 
 ## Modalità estesa
 
-La duplicazione è operativa. Un vero desktop **esteso** richiede un driver monitor virtuale Windows firmato: non è incluso in questa versione per evitare installazioni kernel non sicure durante il prototipo.
+1. Apri MirrorPC sul PC Windows e scegli **Estendi**.
+2. Se richiesto, scarica ed esegui `Setup-MirrorPC-Estendi.bat`.
+3. Il setup installa tramite Winget il pacchetto firmato `VirtualDrivers.Virtual-Display-Driver` e apre le impostazioni schermo.
+4. In Windows scegli **Estendi questi schermi**.
+5. Torna in MirrorPC, premi **Avvia desktop esteso** e seleziona il display virtuale nella finestra di condivisione.
+
+Il driver non viene incorporato o installato silenziosamente. Consulta `THIRD_PARTY_NOTICES.md` per provenienza e licenza.

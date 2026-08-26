@@ -19,12 +19,12 @@
     <section class="hero-panel panel">
       <div class="eyebrow">WIRELESS DISPLAY STUDIO</div>
       <h1>Il tuo schermo,<br><em>senza confini.</em></h1>
-      <p>Duplica il PC su iPad, tablet o un secondo computer con WebRTC diretto, QR temporaneo e latenza ridotta.</p>
+      <p>Duplica oppure estendi il desktop su iPad, tablet o un secondo computer con WebRTC diretto, QR temporaneo e latenza ridotta.</p>
       <div class="mode-grid">
-        <button class="mode active" data-mode="mirror"><span class="mode-icon">▣</span><b>Duplica</b><small>Disponibile ora</small></button>
-        <button class="mode locked" title="Richiede il driver monitor virtuale"><span class="mode-icon">▱</span><b>Estendi</b><small>Driver in arrivo</small></button>
+        <button class="mode active" data-mode="mirror"><span class="mode-icon">▣</span><b>Duplica</b><small>Schermo esistente</small></button>
+        <button class="mode" data-mode="extend"><span class="mode-icon">▱</span><b>Estendi</b><small id="extendStatus">Verifica in corso…</small></button>
       </div>
-      <button id="startButton" class="primary"><span>Avvia condivisione</span><kbd>01</kbd></button>
+      <button id="startButton" class="primary"><span>Avvia duplicazione</span><kbd>01</kbd></button>
       <p class="privacy">La trasmissione rimane nella tua rete. Nessun video viene registrato.</p>
     </section>
 
@@ -58,6 +58,21 @@
       <div class="timer"><span>Il codice iniziale scade in</span><b id="timer">05:00</b></div>
     </aside>
   </main>
+  <section id="extendDialog" class="dialog-shell hidden" role="dialog" aria-modal="true" aria-labelledby="extendTitle">
+    <div class="dialog-card panel">
+      <button id="closeExtendDialog" class="dialog-close" aria-label="Chiudi">×</button>
+      <div class="dialog-icon">▱</div><div class="eyebrow">MIRRORPC EXTEND</div>
+      <h2 id="extendTitle">Prepara il secondo schermo</h2>
+      <p id="extendMessage">MirrorPC sta controllando la configurazione di Windows.</p>
+      <div class="setup-steps">
+        <div><span>1</span><p><b>Installa il display firmato</b><small>Una sola volta, usando il pacchetto ufficiale open source.</small></p></div>
+        <div><span>2</span><p><b>Scegli “Estendi questi schermi”</b><small>Windows creerà uno spazio desktop indipendente.</small></p></div>
+        <div><span>3</span><p><b>Condividi il display MirrorPC</b><small>Selezionalo nella finestra che apparirà.</small></p></div>
+      </div>
+      <div class="dialog-actions"><a id="downloadExtendSetup" class="primary action-link" href="Setup-MirrorPC-Estendi.bat" download>Scarica setup Estendi</a><button id="openDisplaySettings" class="ghost">Apri impostazioni schermo</button><button id="continueExtend" class="ghost">Driver già installato · Continua</button></div>
+      <p class="dialog-note">Il driver non viene installato senza il tuo consenso. Il setup usa il pacchetto ufficiale VirtualDrivers tramite Winget.</p>
+    </div>
+  </section>
   <div id="toast" class="toast"></div>
   <script src="vendor-qrcode.js"></script>
   <script src="host.js"></script>

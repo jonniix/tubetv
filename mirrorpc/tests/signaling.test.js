@@ -2,10 +2,11 @@
 
 const http = require('http');
 const WebSocket = require('ws');
+const port = Number(process.env.PORT || 4177);
 
 function requestSession() {
   return new Promise((resolve, reject) => {
-    const req = http.request({ hostname: '127.0.0.1', port: 4177, path: '/api/session', method: 'POST', headers: { 'content-type': 'application/json' } }, res => {
+    const req = http.request({ hostname: '127.0.0.1', port, path: '/api/session', method: 'POST', headers: { 'content-type': 'application/json' } }, res => {
       let body = '';
       res.on('data', chunk => { body += chunk; });
       res.on('end', () => resolve(JSON.parse(body)));
@@ -28,12 +29,12 @@ function waitFor(ws, type, timeout = 3000) {
 
 (async () => {
   const session = await requestSession();
-  const hostSocket = new WebSocket('ws://127.0.0.1:4177/signal');
+  const hostSocket = new WebSocket(`ws://127.0.0.1:${port}/signal`);
   await new Promise(resolve => hostSocket.once('open', resolve));
   hostSocket.send(JSON.stringify({ type: 'host_register', code: session.code, token: session.token }));
   await waitFor(hostSocket, 'host_ready');
 
-  const viewerSocket = new WebSocket('ws://127.0.0.1:4177/signal');
+  const viewerSocket = new WebSocket(`ws://127.0.0.1:${port}/signal`);
   await new Promise(resolve => viewerSocket.once('open', resolve));
   const joined = waitFor(hostSocket, 'viewer_join');
   viewerSocket.send(JSON.stringify({ type: 'viewer_join', code: session.code }));

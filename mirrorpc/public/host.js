@@ -1,7 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-const state = { stream: null, ws: null, session: null, peers: new Map(), statsTimer: null, countdown: null, joinUrl: '' };
+const state = { stream: null, ws: null, session: null, peers: new Map(), statsTimer: null, countdown: null, joinUrl: '', mode: 'mirror', systemDisplay: null };
 const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 const phpMode = location.pathname.includes('/mirrorpc/');
 const appBase = phpMode ? location.pathname.slice(0, location.pathname.indexOf('/mirrorpc/') + 9) : '';
@@ -9,6 +9,39 @@ const appBase = phpMode ? location.pathname.slice(0, location.pathname.indexOf('
 function toast(message, error = false) {
   const el = $('toast'); el.textContent = message; el.className = `toast show${error ? ' error' : ''}`;
   clearTimeout(el.hideTimer); el.hideTimer = setTimeout(() => el.className = 'toast', 3000);
+}
+
+function setMode(mode) {
+  if (state.stream) return toast('Termina prima la condivisione attiva', true);
+  state.mode = mode === 'extend' ? 'extend' : 'mirror';
+  document.querySelectorAll('.mode').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
+  $('startButton').querySelector('span').textContent = state.mode === 'extend' ? 'Avvia desktop esteso' : 'Avvia duplicazione';
+}
+
+async function refreshDisplayStatus() {
+  const extendButton = document.querySelector('[data-mode="extend"]');
+  try {
+    const response = await fetch('/api/system/display', { cache: 'no-store' });
+    if (!response.ok) throw new Error('local-api-unavailable');
+    state.systemDisplay = await response.json();
+    if (state.systemDisplay.driverInstalled) {
+      $('extendStatus').textContent = 'Driver pronto'; extendButton.classList.add('ready'); extendButton.classList.remove('needs-setup');
+    } else {
+      $('extendStatus').textContent = state.systemDisplay.supported ? 'Setup necessario' : 'Richiede Windows'; extendButton.classList.add('needs-setup'); extendButton.classList.remove('ready');
+    }
+  } catch {
+    state.systemDisplay = null; $('extendStatus').textContent = 'Richiede app Windows'; extendButton.classList.add('needs-setup');
+  }
+}
+
+function openExtendDialog(message) { $('extendMessage').textContent = message || 'Installa il componente firmato e configura Windows in modalità Estendi.'; $('extendDialog').classList.remove('hidden'); $('openDisplaySettings').disabled = !state.systemDisplay?.supported; }
+function closeExtendDialog() { $('extendDialog').classList.add('hidden'); }
+async function openWindowsDisplaySettings() {
+  try {
+    const response = await fetch('/api/system/open-display-settings', { method: 'POST' });
+    if (!response.ok) throw new Error();
+    toast('Impostazioni schermo aperte su Windows');
+  } catch { toast('Apri Impostazioni → Sistema → Schermo sul PC host', true); }
 }
 
 function signal(message) {
@@ -161,6 +194,10 @@ function startCountdown(seconds) {
 
 async function start() {
   try {
+    if (state.mode === 'extend' && !state.systemDisplay?.driverInstalled) {
+      openExtendDialog(state.systemDisplay?.supported ? 'Il display virtuale firmato non risulta ancora installato su questo PC.' : 'Per Estendi devi avviare MirrorPC dall’app Windows sul PC host.');
+      return;
+    }
     $('startButton').disabled = true; $('startButton').querySelector('span').textContent = 'Seleziona lo schermo…';
     const q = qualityMap[$('quality').value];
     state.stream = await navigator.mediaDevices.getDisplayMedia({
@@ -174,11 +211,11 @@ async function start() {
     if (!audioTrack) toast('Il browser non ha condiviso l’audio: riavvia e seleziona “Condividi audio di sistema”', true);
     $('preview').srcObject = state.stream; $('emptyPreview').classList.add('hidden');
     $('liveBadge').className = 'live-badge'; $('liveBadge').innerHTML = '<span></span> LIVE';
-    $('stopButton').disabled = false; $('startButton').querySelector('span').textContent = 'Condivisione attiva';
+    $('stopButton').disabled = false; $('startButton').querySelector('span').textContent = state.mode === 'extend' ? 'Desktop esteso attivo' : 'Duplicazione attiva';
     state.stream.getVideoTracks()[0].addEventListener('ended', stop);
     await createSession(); await applyQuality(); startStats();
   } catch (error) {
-    $('startButton').disabled = false; $('startButton').querySelector('span').textContent = 'Avvia condivisione';
+    $('startButton').disabled = false; $('startButton').querySelector('span').textContent = state.mode === 'extend' ? 'Avvia desktop esteso' : 'Avvia duplicazione';
     if (error.name !== 'NotAllowedError') toast(error.message || 'Avvio non riuscito', true);
   }
 }
@@ -188,12 +225,18 @@ function stop() {
   for (const id of [...state.peers.keys()]) closePeer(id);
   state.ws?.close(); state.ws = null; clearInterval(state.statsTimer); clearInterval(state.countdown);
   $('preview').srcObject = null; $('emptyPreview').classList.remove('hidden'); $('liveBadge').className = 'live-badge offline'; $('liveBadge').innerHTML = '<span></span> OFFLINE';
-  $('startButton').disabled = false; $('startButton').querySelector('span').textContent = 'Avvia condivisione'; $('stopButton').disabled = true;
+  $('startButton').disabled = false; $('startButton').querySelector('span').textContent = state.mode === 'extend' ? 'Avvia desktop esteso' : 'Avvia duplicazione'; $('stopButton').disabled = true;
   $('qrFrame').classList.add('waiting'); $('code').textContent = '••• •••'; $('viewerCount').textContent = '0'; $('copyLink').disabled = true; $('serverStatus').textContent = 'Server locale pronto';
   $('audioHud').textContent = 'AUDIO —'; $('audioHud').classList.remove('audio-missing');
 }
 
 $('startButton').addEventListener('click', start); $('stopButton').addEventListener('click', stop);
+document.querySelectorAll('.mode').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+$('closeExtendDialog').addEventListener('click', closeExtendDialog);
+$('extendDialog').addEventListener('click', event => { if (event.target === $('extendDialog')) closeExtendDialog(); });
+$('openDisplaySettings').addEventListener('click', openWindowsDisplaySettings);
+$('continueExtend').addEventListener('click', async () => { await refreshDisplayStatus(); if (state.systemDisplay?.driverInstalled) { closeExtendDialog(); await openWindowsDisplaySettings(); toast('Imposta Estendi, poi premi Avvia desktop esteso'); } else toast('Driver non rilevato: completa prima il setup', true); });
 $('quality').addEventListener('change', applyQuality); $('fps').addEventListener('change', applyQuality);
 $('copyLink').addEventListener('click', async () => { await navigator.clipboard.writeText(state.joinUrl); toast('Link copiato'); });
 window.addEventListener('beforeunload', () => state.ws?.close());
+refreshDisplayStatus();

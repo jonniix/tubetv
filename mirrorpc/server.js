@@ -5,6 +5,7 @@ const http = require('http');
 const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
+const { promisify } = require('util');
 const express = require('express');
 const QRCode = require('qrcode');
 const { WebSocketServer, WebSocket } = require('ws');
@@ -13,6 +14,7 @@ const PORT = Number(process.env.PORT || 4177);
 const app = express();
 const server = http.createServer(app);
 const sessions = new Map();
+const execFileAsync = promisify(execFile);
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '32kb' }));
@@ -60,6 +62,46 @@ app.post('/api/session', async (req, res) => {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'MirrorPC', sessions: sessions.size, address: lanAddress(), port: PORT });
+});
+
+function isLoopback(req) {
+  const address = String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  return address === '127.0.0.1' || address === '::1';
+}
+
+async function windowsDisplayStatus() {
+  if (process.platform !== 'win32') {
+    return { supported: false, platform: process.platform, driverInstalled: false, adapters: [] };
+  }
+  try {
+    const [displayResult, monitorResult] = await Promise.all([
+      execFileAsync('pnputil.exe', ['/enum-devices', '/class', 'Display'], { windowsHide: true, timeout: 5000, maxBuffer: 128 * 1024 }),
+      execFileAsync('pnputil.exe', ['/enum-devices', '/class', 'Monitor'], { windowsHide: true, timeout: 5000, maxBuffer: 128 * 1024 })
+    ]);
+    const raw = `${displayResult.stdout}\n${monitorResult.stdout}`;
+    const driverInstalled = /virtual\s*(display|monitor)|iddsample|parsec.*display/i.test(raw);
+    const adapters = raw.split(/\r?\n/)
+      .map(line => line.match(/^\s*(?:Device Description|Descrizione dispositivo)\s*:\s*(.+)$/i)?.[1]?.trim())
+      .filter(Boolean)
+      .map(name => ({ name }));
+    return { supported: true, platform: 'win32', driverInstalled, adapters };
+  } catch (error) {
+    return { supported: true, platform: 'win32', driverInstalled: false, adapters: [], diagnostic: error.code || 'DISPLAY_QUERY_FAILED' };
+  }
+}
+
+app.get('/api/system/display', async (req, res) => {
+  res.set('cache-control', 'no-store');
+  res.json(await windowsDisplayStatus());
+});
+
+app.post('/api/system/open-display-settings', (req, res) => {
+  if (process.platform !== 'win32') return res.status(409).json({ ok: false, message: 'Disponibile solo su Windows' });
+  if (!isLoopback(req)) return res.status(403).json({ ok: false, message: 'Comando consentito soltanto dal PC host' });
+  execFile('cmd.exe', ['/c', 'start', '', 'ms-settings:display'], { windowsHide: true }, error => {
+    if (error) return res.status(500).json({ ok: false, message: 'Impossibile aprire le impostazioni schermo' });
+    res.json({ ok: true });
+  });
 });
 
 app.get('/host', (req, res) => res.sendFile(path.join(__dirname, 'public', 'host.html')));
