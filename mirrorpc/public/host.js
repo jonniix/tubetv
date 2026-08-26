@@ -163,7 +163,15 @@ async function start() {
   try {
     $('startButton').disabled = true; $('startButton').querySelector('span').textContent = 'Seleziona lo schermo…';
     const q = qualityMap[$('quality').value];
-    state.stream = await navigator.mediaDevices.getDisplayMedia({ video: { width: { ideal: q.width }, height: { ideal: q.height }, frameRate: { ideal: Number($('fps').value), max: Number($('fps').value) }, cursor: 'always' }, audio: true });
+    state.stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { width: { ideal: q.width }, height: { ideal: q.height }, frameRate: { ideal: Number($('fps').value), max: Number($('fps').value) }, cursor: 'always' },
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 }, sampleRate: { ideal: 48000 } },
+      systemAudio: 'include', windowAudio: 'system', surfaceSwitching: 'include'
+    });
+    const audioTrack = state.stream.getAudioTracks()[0];
+    $('audioHud').textContent = audioTrack ? 'AUDIO PC ON' : 'AUDIO ASSENTE';
+    $('audioHud').classList.toggle('audio-missing', !audioTrack);
+    if (!audioTrack) toast('Il browser non ha condiviso l’audio: riavvia e seleziona “Condividi audio di sistema”', true);
     $('preview').srcObject = state.stream; $('emptyPreview').classList.add('hidden');
     $('liveBadge').className = 'live-badge'; $('liveBadge').innerHTML = '<span></span> LIVE';
     $('stopButton').disabled = false; $('startButton').querySelector('span').textContent = 'Condivisione attiva';
@@ -182,6 +190,7 @@ function stop() {
   $('preview').srcObject = null; $('emptyPreview').classList.remove('hidden'); $('liveBadge').className = 'live-badge offline'; $('liveBadge').innerHTML = '<span></span> OFFLINE';
   $('startButton').disabled = false; $('startButton').querySelector('span').textContent = 'Avvia condivisione'; $('stopButton').disabled = true;
   $('qrFrame').classList.add('waiting'); $('code').textContent = '••• •••'; $('viewerCount').textContent = '0'; $('copyLink').disabled = true; $('serverStatus').textContent = 'Server locale pronto';
+  $('audioHud').textContent = 'AUDIO —'; $('audioHud').classList.remove('audio-missing');
 }
 
 $('startButton').addEventListener('click', start); $('stopButton').addEventListener('click', stop);

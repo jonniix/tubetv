@@ -82,7 +82,15 @@ async function ensurePeer() {
   pc.ontrack = e => {
     const video = $('remoteVideo'); video.srcObject = e.streams[0];
     video.play().catch(() => toast('Tocca lo schermo per avviare il video'));
-    video.onplaying = () => { $('connecting').classList.add('hidden'); startStats(); setTimeout(() => document.body.classList.add('hud-idle'), 4000); };
+    video.onplaying = () => {
+      $('connecting').classList.add('hidden'); startStats();
+      setTimeout(() => {
+        const hasAudio = (video.srcObject?.getAudioTracks().length || 0) > 0;
+        $('muteButton').classList.toggle('unavailable', !hasAudio);
+        $('muteButton').title = hasAudio ? 'Attiva o disattiva audio' : 'Il PC non ha condiviso una traccia audio';
+      }, 500);
+      setTimeout(() => document.body.classList.add('hud-idle'), 4000);
+    };
   };
   pc.onconnectionstatechange = () => { if (pc.connectionState === 'connected') toast('Display collegato'); if (['failed','disconnected'].includes(pc.connectionState)) fail('Collegamento interrotto'); };
   return pc;
@@ -113,7 +121,15 @@ $('connectButton').addEventListener('click', connect);
 $('fullscreen').addEventListener('click', () => document.documentElement.requestFullscreen?.());
 $('fitButton').addEventListener('click', () => { $('remoteVideo').classList.remove('fill'); $('fitButton').classList.add('active'); $('fillButton').classList.remove('active'); });
 $('fillButton').addEventListener('click', () => { $('remoteVideo').classList.add('fill'); $('fillButton').classList.add('active'); $('fitButton').classList.remove('active'); });
-$('muteButton').addEventListener('click', e => { const v = $('remoteVideo'); v.muted = !v.muted; e.currentTarget.classList.toggle('active', !v.muted); });
+$('muteButton').addEventListener('click', async e => {
+  const video = $('remoteVideo');
+  if (!(video.srcObject?.getAudioTracks().length || 0)) return toast('Nessun audio ricevuto: sul PC riavvia e abilita “Condividi audio di sistema”', true);
+  video.muted = !video.muted; video.volume = 1;
+  try { await video.play(); } catch { return toast('Safari ha bloccato l’audio: tocca nuovamente Audio', true); }
+  e.currentTarget.classList.toggle('active', !video.muted);
+  e.currentTarget.innerHTML = video.muted ? '<span>◉</span>Audio' : '<span>◉</span>Audio ON';
+  toast(video.muted ? 'Audio disattivato' : 'Audio attivato');
+});
 $('disconnectButton').addEventListener('click', disconnect);
 $('display').addEventListener('pointerdown', () => { document.body.classList.remove('hud-idle'); setTimeout(() => document.body.classList.add('hud-idle'), 4000); $('remoteVideo').play().catch(()=>{}); });
 populateCode(); if (codeValue().length === 6) setTimeout(connect, 350);
