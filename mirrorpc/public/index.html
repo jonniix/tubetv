@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#03070c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <title>MirrorPC Display</title>
+</head>
+<body class="viewer-page">
+  <div id="joinScreen" class="join-screen">
+    <div class="viewer-brand"><span class="brand-mark"><i></i><i></i></span><span>Mirror<span>PC</span></span></div>
+    <div class="join-card">
+      <span class="eyebrow">SECURE DISPLAY LINK</span>
+      <h1>Collega questo schermo</h1>
+      <p>Inserisci il codice mostrato sul PC. Il collegamento è temporaneo e cifrato.</p>
+      <div class="code-inputs" id="codeInputs">
+        <input inputmode="numeric" maxlength="1" aria-label="Cifra 1"><input inputmode="numeric" maxlength="1" aria-label="Cifra 2"><input inputmode="numeric" maxlength="1" aria-label="Cifra 3"><span></span><input inputmode="numeric" maxlength="1" aria-label="Cifra 4"><input inputmode="numeric" maxlength="1" aria-label="Cifra 5"><input inputmode="numeric" maxlength="1" aria-label="Cifra 6">
+      </div>
+      <button id="connectButton" class="primary">Connetti display</button>
+      <div class="secure-line"><i>✓</i> Peer-to-peer · Nessuna registrazione</div>
+    </div>
+  </div>
+
+  <main id="display" class="display hidden">
+    <video id="remoteVideo" autoplay playsinline muted></video>
+    <div id="connecting" class="connecting"><div class="orbit"><i></i><i></i></div><b>Sincronizzazione display</b><span id="connectDetail">Creazione del collegamento diretto…</span></div>
+    <header class="display-hud">
+      <div class="viewer-brand small"><span class="brand-mark"><i></i><i></i></span><span>Mirror<span>PC</span></span></div>
+      <div class="hud-stats"><span id="rxResolution">—</span><span id="rxFps">— FPS</span><span id="rxBitrate">— Mbps</span><span id="latency">LAN</span></div>
+      <button id="fullscreen" class="round" aria-label="Schermo intero">⛶</button>
+    </header>
+    <footer class="display-controls">
+      <button id="fitButton" class="control active"><span>▣</span>Adatta</button>
+      <button id="fillButton" class="control"><span>▰</span>Riempi</button>
+      <button id="muteButton" class="control"><span>◉</span>Audio</button>
+      <button id="disconnectButton" class="control danger"><span>×</span>Chiudi</button>
+    </footer>
+    <div id="viewerToast" class="toast"></div>
+  </main>
+  <script src="viewer.js"></script>
+</body>
+</html>

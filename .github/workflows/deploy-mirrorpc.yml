@@ -1,0 +1,75 @@
+name: Deploy MirrorPC su Hostpoint
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - mirrorpc-production
+    paths:
+      - 'mirrorpc/public/**'
+      - '.github/workflows/deploy-mirrorpc.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirrorpc-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      HOSTPOINT_HOST: ${{ secrets.HOSTPOINT_HOST }}
+      HOSTPOINT_USER: ${{ secrets.HOSTPOINT_USER }}
+      HOSTPOINT_PORT: ${{ secrets.HOSTPOINT_PORT }}
+      HOSTPOINT_PATH: ${{ secrets.HOSTPOINT_PATH }}
+      HOSTPOINT_SSH_KEY: ${{ secrets.HOSTPOINT_SSH_KEY }}
+
+    steps:
+      - name: Scarica il codice
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Verifica MirrorPC
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --check mirrorpc/server.js
+          node --check mirrorpc/public/host.js
+          node --check mirrorpc/public/viewer.js
+          while IFS= read -r -d '' file; do
+            php -l "$file" >/dev/null
+          done < <(find mirrorpc/public/api -type f -name '*.php' -print0)
+
+      - name: Prepara SSH
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : "${HOSTPOINT_HOST:?Secret HOSTPOINT_HOST mancante}"
+          : "${HOSTPOINT_USER:?Secret HOSTPOINT_USER mancante}"
+          : "${HOSTPOINT_PATH:?Secret HOSTPOINT_PATH mancante}"
+          : "${HOSTPOINT_SSH_KEY:?Secret HOSTPOINT_SSH_KEY mancante}"
+          HOSTPOINT_PORT="${HOSTPOINT_PORT:-22}"
+          echo "HOSTPOINT_PORT=$HOSTPOINT_PORT" >> "$GITHUB_ENV"
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$HOSTPOINT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/hostpoint_deploy"
+          chmod 600 "$HOME/.ssh/hostpoint_deploy"
+          ssh-keyscan -p "$HOSTPOINT_PORT" -H "$HOSTPOINT_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Pubblica esclusivamente MirrorPC
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          REMOTE_ROOT="${HOSTPOINT_PATH%/}"
+          case "$REMOTE_ROOT" in ''|'/'|'.') echo 'Percorso Hostpoint non sicuro'; exit 1;; esac
+          ssh -i "$HOME/.ssh/hostpoint_deploy" -p "$HOSTPOINT_PORT" "${HOSTPOINT_USER}@${HOSTPOINT_HOST}" \
+            "mkdir -p -- '$REMOTE_ROOT/mirrorpc'"
+          rsync -az --checksum --delete-delay --itemize-changes \
+            -e "ssh -i $HOME/.ssh/hostpoint_deploy -p $HOSTPOINT_PORT" \
+            ./mirrorpc/public/ "${HOSTPOINT_USER}@${HOSTPOINT_HOST}:${REMOTE_ROOT}/mirrorpc/"
+
+      - name: Riepilogo
+        run: echo "MirrorPC pubblicato in /mirrorpc senza modificare altre aree di TubeTV."

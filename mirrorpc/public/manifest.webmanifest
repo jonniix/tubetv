@@ -1,0 +1,10 @@
+{
+  "name": "MirrorPC Display",
+  "short_name": "MirrorPC",
+  "start_url": "./display.html",
+  "display": "fullscreen",
+  "background_color": "#03070c",
+  "theme_color": "#07111d",
+  "orientation": "any",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
