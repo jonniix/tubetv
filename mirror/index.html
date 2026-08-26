@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07090d">
+  <title>TubeTV Mirror</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <main id="receiverView" class="receiver-shell is-hidden">
+    <header class="topbar">
+      <a class="brand" href="../" aria-label="TubeTV home"><span>Tube</span><b>TV</b><em>MIRROR</em></a>
+      <div class="connection-pill" id="receiverPill"><span></span><b>Pronto</b></div>
+    </header>
+
+    <section id="pairStage" class="pair-stage">
+      <div class="intro-copy">
+        <div class="eyebrow">CONNESSIONE ISTANTANEA</div>
+        <h1>Porta il tuo schermo<br><span>qui davanti.</span></h1>
+        <p>Scansiona il QR con il dispositivo che vuoi condividere oppure inserisci il codice su un altro dispositivo.</p>
+        <div class="secure-row"><span>⌁</span> Sessione cifrata e temporanea</div>
+      </div>
+      <div class="pair-card">
+        <div class="scan-corners"><i></i><i></i><i></i><i></i></div>
+        <div id="qrCode" class="qr-box" aria-label="Codice QR di associazione"></div>
+        <p>SCANSIONA PER CONNETTERTI</p>
+        <div class="code-wrap">
+          <div id="pairCode" class="pair-code">••••</div>
+          <div class="countdown"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="17"></circle><circle id="timerRing" cx="21" cy="21" r="17"></circle></svg><b id="timerText">60</b></div>
+        </div>
+        <div id="pairHint" class="pair-hint">Il codice cambia automaticamente ogni 60 secondi</div>
+      </div>
+    </section>
+
+    <section id="screenStage" class="screen-stage is-hidden">
+      <video id="remoteVideo" autoplay playsinline></video>
+      <div id="screenEmpty" class="screen-empty">
+        <div class="pulse-device"><span></span></div>
+        <h2>Dispositivo collegato</h2><p>Avvia la condivisione dal telecomando.</p>
+      </div>
+      <div id="appNotice" class="app-notice is-hidden"><span id="appNoticeIcon">▶</span><div><b id="appNoticeTitle">Apertura applicazione</b><small>Sul dispositivo collegato</small></div></div>
+      <button id="exitScreen" class="exit-screen" type="button">×</button>
+    </section>
+
+    <footer class="receiver-footer"><span id="receiverName">TubeTV Display</span><span>WebRTC · Connessione diretta</span></footer>
+  </main>
+
+  <main id="senderView" class="sender-shell is-hidden">
+    <header class="mobile-header">
+      <div class="brand small"><span>Tube</span><b>TV</b><em>REMOTE</em></div>
+      <div id="senderPill" class="connection-pill compact"><span></span><b>Associazione</b></div>
+    </header>
+
+    <section id="joinStage" class="join-stage">
+      <div class="phone-orb"><span>⌁</span></div>
+      <div class="eyebrow">TUBETV MIRROR</div>
+      <h1>Collega il dispositivo</h1>
+      <p>Inserisci le quattro cifre mostrate sullo schermo.</p>
+      <form id="codeForm" autocomplete="off">
+        <label for="manualCode">Codice di associazione</label>
+        <input id="manualCode" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" aria-label="Codice a quattro cifre">
+        <button class="primary-button" type="submit"><span>Connetti</span><b>→</b></button>
+      </form>
+      <div id="joinError" class="form-error" role="alert"></div>
+      <button id="becomeReceiver" class="text-button" type="button">Usa questo dispositivo come schermo</button>
+    </section>
+
+    <section id="remoteStage" class="remote-stage is-hidden">
+      <div class="now-card">
+        <div class="device-art"><span id="deviceGlyph">▰</span><i></i></div>
+        <div><small>COLLEGATO A</small><strong id="connectedDevice">TubeTV Display</strong><span id="streamState">Pronto per condividere</span></div>
+        <button id="startShare" class="share-button" type="button"><span>◉</span> Condividi</button>
+      </div>
+
+      <div id="supportNotice" class="support-notice is-hidden"></div>
+
+      <nav class="remote-tabs" aria-label="Sezioni telecomando">
+        <button class="active" data-tab="remote" type="button"><span>⌁</span>Remote</button>
+        <button data-tab="apps" type="button"><span>▦</span>App</button>
+        <button data-tab="session" type="button"><span>◌</span>Sessione</button>
+      </nav>
+
+      <div id="tab-remote" class="tab-panel active">
+        <div class="remote-body">
+          <div class="utility-row">
+            <button data-command="back" type="button"><span>↶</span><small>Indietro</small></button>
+            <button data-command="home" type="button"><span>⌂</span><small>Home</small></button>
+            <button data-command="mute" type="button"><span>⊘</span><small>Mute</small></button>
+          </div>
+          <div class="control-grid">
+            <div class="volume-rail">
+              <button data-command="volumeUp" type="button">+</button><span>VOL</span><button data-command="volumeDown" type="button">−</button>
+            </div>
+            <div class="dpad" aria-label="Controllo direzionale">
+              <button class="up" data-command="up" type="button">⌃</button>
+              <button class="left" data-command="left" type="button">‹</button>
+              <button class="select" data-command="select" type="button"><span>OK</span></button>
+              <button class="right" data-command="right" type="button">›</button>
+              <button class="down" data-command="down" type="button">⌄</button>
+            </div>
+            <div class="channel-rail">
+              <button data-command="next" type="button">+</button><span>CH</span><button data-command="previous" type="button">−</button>
+            </div>
+          </div>
+          <button class="play-control" data-command="playPause" type="button"><span>▶</span><b>Riproduci / Pausa</b></button>
+        </div>
+      </div>
+
+      <div id="tab-apps" class="tab-panel">
+        <div class="section-head"><div><small>APERTURA RAPIDA</small><h2>Le tue app</h2></div><span>Apri sul dispositivo</span></div>
+        <div id="appsGrid" class="apps-grid"></div>
+        <p class="apps-note">Quando condividi l’intero schermo, l’app o il sito aperto sul dispositivo apparirà anche sul display collegato.</p>
+      </div>
+
+      <div id="tab-session" class="tab-panel">
+        <div class="session-card"><span class="session-icon">◌</span><small>SESSIONE ATTIVA</small><h2 id="sessionDeviceName">TubeTV Display</h2><p>La connessione resta privata tra i dispositivi. Puoi interromperla in qualsiasi momento.</p><button id="disconnectButton" class="danger-button" type="button">Termina sessione</button></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="../assets/vendor/qrcode.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
