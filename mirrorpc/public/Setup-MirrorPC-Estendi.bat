@@ -31,13 +31,28 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
+set "MIRRORPC_VDD_CONTROL="
+for /d %%D in ("%LOCALAPPDATA%\Microsoft\WinGet\Packages\VirtualDrivers.Virtual-Display-Driver_*") do if exist "%%~fD\VDD Control.exe" set "MIRRORPC_VDD_CONTROL=%%~fD\VDD Control.exe"
+if not defined MIRRORPC_VDD_CONTROL (
+  echo  VDD Control non trovato dopo il download.
+  pause
+  exit /b 1
+)
+echo  Apro VDD Control. Nel programma scegli:
+echo  Virtual Display Driver ^> System ^> Install Driver
+echo  e conferma la richiesta di Windows.
+start "" "%MIRRORPC_VDD_CONTROL%"
+echo.
+echo  Dopo aver premuto Install Driver, torna qui e premi un tasto.
+pause >nul
 pnputil.exe /scan-devices >nul 2>nul
 timeout /t 3 /nobreak >nul
 set "MIRRORPC_DRIVER_FOUND="
 for /f "delims=" %%L in ('pnputil.exe /enum-devices /class Display ^| findstr /i /c:"Virtual Display" /c:"IddSample"') do set "MIRRORPC_DRIVER_FOUND=1"
 if not defined MIRRORPC_DRIVER_FOUND (
-  echo  Il pacchetto e installato, ma Windows non ha ancora attivato il display.
-  echo  Riavvia il PC, poi riapri MirrorPC e premi Estendi.
+  echo  Il driver non risulta installato.
+  echo  In VDD Control premi Virtual Display Driver ^> System ^> Install Driver.
+  echo  Se lo hai gia fatto, riavvia il PC e riprova.
   echo.
   pause
   exit /b 0
