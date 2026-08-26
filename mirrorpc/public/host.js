@@ -235,7 +235,20 @@ document.querySelectorAll('.mode').forEach(button => button.addEventListener('cl
 $('closeExtendDialog').addEventListener('click', closeExtendDialog);
 $('extendDialog').addEventListener('click', event => { if (event.target === $('extendDialog')) closeExtendDialog(); });
 $('openDisplaySettings').addEventListener('click', openWindowsDisplaySettings);
-$('continueExtend').addEventListener('click', async () => { await refreshDisplayStatus(); if (state.systemDisplay?.driverInstalled) { closeExtendDialog(); await openWindowsDisplaySettings(); toast('Imposta Estendi, poi premi Avvia desktop esteso'); } else toast('Driver non rilevato: completa prima il setup', true); });
+$('continueExtend').addEventListener('click', async () => {
+  if (phpMode) {
+    state.systemDisplay = { supported: true, driverInstalled: true, manuallyConfirmed: true };
+    $('extendStatus').textContent = 'Configurazione confermata';
+    const extendButton = document.querySelector('[data-mode="extend"]');
+    extendButton.classList.add('ready'); extendButton.classList.remove('needs-setup');
+    closeExtendDialog();
+    toast('Ora premi Avvia desktop esteso e scegli il display virtuale');
+    return;
+  }
+  await refreshDisplayStatus();
+  if (state.systemDisplay?.driverInstalled) { closeExtendDialog(); await openWindowsDisplaySettings(); toast('Imposta Estendi, poi premi Avvia desktop esteso'); }
+  else toast('Driver non rilevato: completa prima il setup', true);
+});
 $('quality').addEventListener('change', applyQuality); $('fps').addEventListener('change', applyQuality);
 $('copyLink').addEventListener('click', async () => { await navigator.clipboard.writeText(state.joinUrl); toast('Link copiato'); });
 window.addEventListener('beforeunload', () => state.ws?.close());
