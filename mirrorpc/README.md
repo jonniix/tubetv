@@ -4,6 +4,8 @@ MirrorPC trasforma iPad, Android o un altro computer in un display wireless del 
 
 La dashboard Control aggiunge dispositivi salvati, rilevamento online nella LAN, Wake-on-LAN, scanner QR con codice manuale e controllo mouse/tastiera per le sessioni avviate dall'app locale Windows.
 
+La dashboard con dispositivi e indirizzi LAN viene servita solo dall'app locale (`control.html`). Il portale pubblico non incorpora né pubblica l'elenco personale: offre esclusivamente download, duplicazione/estensione rapida e collegamento a un codice temporaneo.
+
 ## Avvio rapido
 
 1. Fai doppio clic su `Avvia MirrorPC.bat`.

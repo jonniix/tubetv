@@ -19,6 +19,7 @@ const execFileAsync = promisify(execFile);
 let controlAgent = null;
 
 app.disable('x-powered-by');
+app.get(['/', '/control'], (req, res) => res.sendFile(path.join(__dirname, 'control.html')));
 app.use(express.json({ limit: '32kb' }));
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
@@ -258,7 +259,7 @@ const heartbeat = setInterval(() => {
 
 server.on('close', () => clearInterval(heartbeat));
 server.listen(PORT, '0.0.0.0', () => {
-  const local = `http://localhost:${PORT}/host`;
+  const local = `http://localhost:${PORT}/`;
   console.log(`\nMirrorPC pronto\nHost: ${local}\nRicevitore LAN: http://${lanAddress()}:${PORT}\n`);
   if (process.platform === 'win32' && process.env.AUTO_OPEN !== '0') execFile('cmd.exe', ['/c', 'start', '', local]);
 });

@@ -41,6 +41,7 @@ jobs:
           node --check mirrorpc/public/host.js
           node --check mirrorpc/public/viewer.js
           node --check mirrorpc/public/dashboard.js
+          node --check mirrorpc/public/public-portal.js
           while IFS= read -r -d '' file; do
             php -l "$file" >/dev/null
           done < <(find mirrorpc/public/api -type f -name '*.php' -print0)

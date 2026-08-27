@@ -4,60 +4,37 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#050b12">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
-  <title>MirrorPC Control</title>
+  <title>MirrorPC Online</title>
 </head>
-<body class="control-page">
+<body class="host-page public-portal">
   <div class="ambient one"></div><div class="ambient two"></div>
-  <header class="control-topbar">
+  <header class="topbar portal-topbar">
     <a class="brand" href="./"><span class="brand-mark"><i></i><i></i></span><span>Mirror<span>PC</span></span></a>
-    <div class="control-top-actions">
-      <span class="relay-status"><i></i><span id="serverStatus">Relay locale in verifica</span></span>
-      <button id="openScanner" class="scanner-button" aria-label="Scansiona QR"><span class="scanner-corners"></span><b>SCANSIONA</b></button>
-    </div>
+    <div class="portal-actions"><span class="top-status"><span class="pulse-dot"></span><span id="serverStatus">Server sicuro pronto</span></span><button id="openJoin" class="ghost portal-connect"><span class="scanner-corners"></span>Collegati a un PC</button><a class="primary portal-download" href="Installa-MirrorPC.bat" download>Scarica app</a></div>
   </header>
 
-  <main class="control-shell">
-    <aside class="device-rail panel">
-      <div class="rail-head"><div><span class="eyebrow">I TUOI DISPOSITIVI</span><h1>I miei PC</h1></div><button id="addDevice" class="mini-add" aria-label="Aggiungi PC">+</button></div>
-      <div class="device-summary"><span><b id="onlineCount">0</b> online</span><span><b id="deviceCount">0</b> salvati</span></div>
-      <div id="deviceList" class="saved-devices"></div>
-      <div class="relay-card"><span class="relay-orbit"><i></i></span><div><b>Polaroid Relay</b><small id="relayDetail">Controllo rete locale</small></div><span id="relayLed" class="status-led checking"></span></div>
-    </aside>
-
-    <section class="control-workspace">
-      <div class="workspace-heading"><div><span class="eyebrow">REMOTE DESKTOP</span><h2>Controlla. Duplica. Estendi.</h2><p>Scegli un PC salvato oppure crea un collegamento temporaneo sicuro.</p></div><span class="secure-chip">● CIFRATO P2P</span></div>
-      <section class="stage panel control-stage">
-        <div class="stage-head"><div><span class="label">ANTEPRIMA DEL TUO SCHERMO</span><h2 id="screenName">Pronto per una nuova sessione</h2></div><div id="liveBadge" class="live-badge offline"><span></span> OFFLINE</div></div>
-        <div class="preview-wrap"><video id="preview" autoplay muted playsinline></video><div id="emptyPreview" class="empty-preview"><div class="remote-hero-icon"><i></i><span>⌁</span></div><b>Nessuna sessione attiva</b><p>Avvia la condivisione e usa il QR sulla destra</p></div><div class="preview-hud"><span id="resolutionHud">AUTO</span><span id="fpsHud">— FPS</span><span id="bitrateHud">— Mbps</span><span id="audioHud">AUDIO —</span></div></div>
-        <div class="session-tools">
-          <div class="mode-grid compact"><button class="mode active" data-mode="mirror"><span class="mode-icon">▣</span><b>Duplica</b><small>Schermo attuale</small></button><button class="mode" data-mode="extend"><span class="mode-icon">▱</span><b>Estendi</b><small id="extendStatus">Verifica…</small></button></div>
-          <div class="quality-tools"><label>Qualità<select id="quality"><option value="auto">Auto</option><option value="1080">Full HD</option><option value="720">HD</option><option value="540">Fluida</option></select></label><label>FPS<select id="fps"><option value="60">60</option><option value="30">30</option><option value="24">24</option></select></label></div>
-        </div>
-        <div class="launch-row"><button id="startButton" class="primary launch"><span>Avvia collegamento rapido</span><kbd>→</kbd></button><button id="stopButton" class="ghost danger" disabled>Termina</button></div>
-      </section>
+  <main class="host-shell portal-shell">
+    <section class="hero-panel panel">
+      <div class="eyebrow">MIRRORPC ONLINE</div><h1>Il tuo schermo,<br><em>senza confini.</em></h1>
+      <p>Duplica rapidamente questo PC oppure usa l’app completa per dispositivi salvati, Wake-on-LAN e controllo remoto.</p>
+      <div class="mode-grid"><button class="mode active" data-mode="mirror"><span class="mode-icon">▣</span><b>Duplica</b><small>Schermo esistente</small></button><button class="mode" data-mode="extend"><span class="mode-icon">▱</span><b>Estendi</b><small id="extendStatus">Richiede driver</small></button></div>
+      <button id="startButton" class="primary"><span>Avvia duplicazione</span><kbd>01</kbd></button>
+      <button id="openJoinHero" class="ghost join-secondary"><span>⌗</span> Inserisci codice di un altro PC</button>
+      <a class="app-download-card" href="Installa-MirrorPC.bat" download><span class="windows-mark">⊞</span><span><b>MirrorPC per Windows</b><small>I tuoi PC, Wake-on-LAN e controllo completo</small></span><i>↓</i></a>
+      <p class="privacy">Nessun tuo dispositivo personale viene mostrato o salvato su questa pagina.</p>
     </section>
 
-    <aside class="quick-connect panel">
-      <div class="quick-head"><span class="quick-bolt">ϟ</span><div><span class="eyebrow">METODO RAPIDO</span><h2>Collega a questo PC</h2></div></div>
-      <p>Il QR e il codice compaiono appena avvii la condivisione.</p>
-      <div id="qrFrame" class="qr-frame waiting large"><div class="qr-placeholder"><span></span><b>AVVIA UNA SESSIONE</b></div><img id="qrImage" alt="QR di collegamento"></div>
-      <div class="code-label">CODICE TEMPORANEO</div><div id="code" class="pair-code">••• •••</div>
-      <button id="copyLink" class="ghost full" disabled>Copia link sicuro</button>
-      <div class="quick-metrics"><div><small>CONNESSI</small><strong id="viewerCount">0</strong></div><div><small>SCADENZA</small><strong id="timer">05:00</strong></div><div id="linkState" class="signal-bars"><i></i><i></i><i></i><i></i></div></div>
-      <div class="quick-note"><span>✓</span><p><b>Nessuna registrazione video</b><small>Il flusso viaggia direttamente tra i dispositivi.</small></p></div>
-    </aside>
+    <section class="stage panel"><div class="stage-head"><div><span class="label">ANTEPRIMA LIVE</span><h2 id="screenName">Nessuno schermo selezionato</h2></div><div id="liveBadge" class="live-badge offline"><span></span> OFFLINE</div></div><div class="preview-wrap"><video id="preview" autoplay muted playsinline></video><div id="emptyPreview" class="empty-preview"><div class="scan-frame"><i></i><i></i><i></i><i></i><span>+</span></div><p>La tua anteprima apparirà qui</p></div><div class="preview-hud"><span id="resolutionHud">—</span><span id="fpsHud">— FPS</span><span id="bitrateHud">— Mbps</span><span id="audioHud">AUDIO —</span></div></div><div class="controls-row"><label>Qualità<select id="quality"><option value="auto">Auto intelligente</option><option value="1080">Full HD</option><option value="720">HD</option><option value="540">Fluida</option></select></label><label>Fluidità<select id="fps"><option value="60">60 FPS</option><option value="30">30 FPS</option><option value="24">24 FPS</option></select></label><button id="stopButton" class="ghost danger" disabled>Termina</button></div></section>
+
+    <aside class="pair panel"><div class="step"><span>02</span><div><b>Collega un altro schermo</b><small>Scansiona quando la sessione è attiva</small></div></div><div id="qrFrame" class="qr-frame waiting"><div class="qr-placeholder"><span></span><b>QR IN ATTESA</b></div><img id="qrImage" alt="QR di collegamento"></div><div class="code-label">CODICE SESSIONE</div><div id="code" class="pair-code">••• •••</div><button id="copyLink" class="ghost" disabled>Copia link</button><div class="device-card"><div class="device-icon">◫</div><div><small>DISPOSITIVI CONNESSI</small><strong id="viewerCount">0</strong></div><div id="linkState" class="signal-bars"><i></i><i></i><i></i><i></i></div></div><div class="timer"><span>Il codice iniziale scade in</span><b id="timer">05:00</b></div></aside>
   </main>
 
-  <section id="scannerDialog" class="dialog-shell hidden" role="dialog" aria-modal="true" aria-labelledby="scannerTitle"><div class="scanner-dialog panel"><button class="dialog-close" data-close="scannerDialog">×</button><span class="eyebrow">QUICK CONNECT</span><h2 id="scannerTitle">Scansiona un computer</h2><p>Inquadra il QR MirrorPC oppure inserisci il codice mostrato dall’altro PC.</p><div class="camera-box"><video id="scannerVideo" playsinline muted></video><div class="camera-grid"><i></i><i></i><i></i><i></i><span></span></div><div id="cameraMessage">Fotocamera non ancora attiva</div></div><button id="startCamera" class="ghost full">Apri fotocamera</button><div class="or-line"><span>oppure usa il codice</span></div><div class="manual-code"><input id="manualCode" inputmode="numeric" maxlength="6" placeholder="000 000" aria-label="Codice sessione"><button id="joinManual" class="primary">Connetti</button></div></div></section>
+  <section id="joinDialog" class="dialog-shell hidden" role="dialog" aria-modal="true" aria-labelledby="joinTitle"><div class="scanner-dialog panel"><button id="closeJoin" class="dialog-close" aria-label="Chiudi">×</button><span class="eyebrow">COLLEGATI A UN ALTRO PC</span><h2 id="joinTitle">Scansiona o inserisci il codice</h2><p>Il codice è quello mostrato sul computer che vuoi vedere.</p><div class="camera-box"><video id="scannerVideo" playsinline muted></video><div class="camera-grid"><i></i><i></i><i></i><i></i><span></span></div><div id="cameraMessage">Puoi usare la fotocamera oppure il codice</div></div><button id="startCamera" class="ghost full">Apri scanner QR</button><div class="or-line"><span>oppure inserisci il codice</span></div><div class="manual-code"><input id="manualCode" inputmode="numeric" maxlength="6" placeholder="000 000"><button id="joinManual" class="primary">Visualizza PC</button></div></div></section>
 
-  <section id="deviceDialog" class="dialog-shell hidden" role="dialog" aria-modal="true" aria-labelledby="deviceTitle"><form id="deviceForm" class="device-dialog panel"><button type="button" class="dialog-close" data-close="deviceDialog">×</button><span class="eyebrow">DISPOSITIVO PERSONALE</span><h2 id="deviceTitle">Aggiungi un PC</h2><div class="form-grid"><label>Nome<input id="deviceName" required maxlength="30" placeholder="PC Studio"></label><label>IP locale<input id="deviceIp" required inputmode="decimal" placeholder="192.168.1.100"></label><label class="wide">MAC Ethernet <small>necessario per Wake-on-LAN</small><input id="deviceMac" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF"></label><label class="wide">Link MirrorPC <small>facoltativo</small><input id="deviceUrl" type="url" placeholder="http://192.168.1.100:4177"></label></div><button class="primary full" type="submit">Salva dispositivo</button></form></section>
-
-  <section id="extendDialog" class="dialog-shell hidden" role="dialog" aria-modal="true" aria-labelledby="extendTitle"><div class="dialog-card panel"><button id="closeExtendDialog" class="dialog-close">×</button><div class="dialog-icon">▱</div><div class="eyebrow">MIRRORPC EXTEND</div><h2 id="extendTitle">Prepara il secondo schermo</h2><p id="extendMessage">Configura il display virtuale Windows.</p><div class="setup-steps"><div><span>1</span><p><b>Installa il display firmato</b><small>Operazione necessaria una sola volta.</small></p></div><div><span>2</span><p><b>Scegli “Estendi questi schermi”</b><small>Windows creerà uno spazio indipendente.</small></p></div><div><span>3</span><p><b>Seleziona il display MirrorPC</b><small>Condividilo nella finestra del browser.</small></p></div></div><div class="dialog-actions"><a id="downloadExtendSetup" class="primary action-link" href="Setup-MirrorPC-Estendi.bat" download>Scarica setup Estendi</a><button id="openDisplaySettings" class="ghost">Apri impostazioni</button><button id="continueExtend" class="ghost">Driver installato · Continua</button></div></div></section>
+  <section id="extendDialog" class="dialog-shell hidden" role="dialog" aria-modal="true" aria-labelledby="extendTitle"><div class="dialog-card panel"><button id="closeExtendDialog" class="dialog-close" aria-label="Chiudi">×</button><div class="dialog-icon">▱</div><div class="eyebrow">MIRRORPC EXTEND</div><h2 id="extendTitle">Prepara il secondo schermo</h2><p id="extendMessage">Per utilizzare Estendi devi installare il display virtuale.</p><div class="setup-steps"><div><span>1</span><p><b>Installa il driver firmato</b><small>Una sola volta sul PC Windows.</small></p></div><div><span>2</span><p><b>Scegli “Estendi questi schermi”</b><small>Windows creerà uno spazio indipendente.</small></p></div><div><span>3</span><p><b>Seleziona il display virtuale</b><small>Condividilo nella finestra del browser.</small></p></div></div><div class="dialog-actions"><a id="downloadExtendSetup" class="primary action-link" href="Setup-MirrorPC-Estendi.bat" download>Scarica driver Estendi</a><button id="openDisplaySettings" class="ghost" disabled>Apri impostazioni</button><button id="continueExtend" class="ghost">Driver già installato · Continua</button></div></div></section>
   <div id="toast" class="toast"></div>
-  <script src="vendor-qrcode.js"></script><script src="vendor-jsqr.js"></script><script src="host.js"></script><script src="dashboard.js"></script>
+  <script src="vendor-qrcode.js"></script><script src="vendor-jsqr.js"></script><script src="host.js"></script><script src="public-portal.js"></script>
 </body>
 </html>

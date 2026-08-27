@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check public/host.js && node --check public/viewer.js && node --check public/dashboard.js",
+    "check": "node --check server.js && node --check public/host.js && node --check public/viewer.js && node --check public/dashboard.js && node --check public/public-portal.js",
     "test:signaling": "node tests/signaling.test.js"
   },
   "dependencies": {

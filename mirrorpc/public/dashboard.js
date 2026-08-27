@@ -4,11 +4,7 @@
   const byId = id => document.getElementById(id);
   const STORAGE_KEY = 'mirrorpc_devices_v1';
   const newId = () => globalThis.crypto?.randomUUID?.() || `pc-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const defaults = [
-    { id: newId(), name: 'PC fisso', ip: '192.168.1.106', mac: '', url: 'http://192.168.1.106:4177' },
-    { id: newId(), name: 'Polaroid Relay', ip: '192.168.1.110', mac: '', url: 'http://192.168.1.110:4177' },
-    { id: newId(), name: 'ASUS', ip: '192.168.1.123', mac: '', url: 'http://192.168.1.123:4177' }
-  ];
+  const defaults = [];
   let devices = loadDevices(), scannerStream = null, scanTimer = 0;
 
   function loadDevices() {
