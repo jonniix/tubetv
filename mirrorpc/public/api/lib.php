@@ -3,6 +3,23 @@ declare(strict_types=1);
 
 const MIRROR_TTL = 21600;
 
+function mirror_cors(): void {
+    $origin = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
+    $local = preg_match('#^http://(?:localhost|127\.0\.0\.1|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}):4177$#', $origin);
+    if ($local) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Vary: Origin');
+        header('Access-Control-Allow-Headers: Content-Type');
+        header('Access-Control-Allow-Methods: POST, OPTIONS');
+    }
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+        http_response_code($local ? 204 : 403);
+        exit;
+    }
+}
+
+mirror_cors();
+
 function json_response(array $payload, int $status = 200): never {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');

@@ -7,6 +7,9 @@ $code = valid_code($data['code'] ?? '');
 if ($action === 'join') enforce_join_rate_limit();
 
 $result = with_session($code, function (array &$session) use ($action, $data): array {
+    if ($action === 'info') {
+        return ['ok' => true, 'hostRegistered' => !empty($session['hostRegistered']), 'challenge' => (string)($session['challenge'] ?? '')];
+    }
     if ($action === 'register_host') {
         if (!safe_equal($session['token'], $data['token'] ?? '')) json_response(['message' => 'Autorizzazione host non valida'], 403);
         $session['hostRegistered'] = true; $session['hostSeenAt'] = time();
@@ -17,8 +20,10 @@ $result = with_session($code, function (array &$session) use ($action, $data): a
         $viewerId = bin2hex(random_bytes(12));
         $session['viewers'][$viewerId] = ['lastSeen' => time()];
         $session['messages'][$viewerId] = [];
-        queue_message($session, 'host', ['type' => 'viewer_join', 'viewerId' => $viewerId, 'viewers' => count($session['viewers'])]);
-        return ['viewerId' => $viewerId];
+        $proof = strtolower((string)($data['proof'] ?? ''));
+        if ($proof !== '' && !preg_match('/^[a-f0-9]{64}$/', $proof)) json_response(['message' => 'Prova di accesso non valida'], 400);
+        queue_message($session, 'host', ['type' => 'viewer_join', 'viewerId' => $viewerId, 'viewers' => count($session['viewers']), 'proof' => $proof, 'challenge' => (string)($session['challenge'] ?? '')]);
+        return ['viewerId' => $viewerId, 'challenge' => (string)($session['challenge'] ?? '')];
     }
     $role = (string)($data['role'] ?? '');
     $recipient = '';

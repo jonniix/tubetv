@@ -22,7 +22,9 @@
       <div class="code-inputs" id="codeInputs">
         <input inputmode="numeric" maxlength="1" aria-label="Cifra 1"><input inputmode="numeric" maxlength="1" aria-label="Cifra 2"><input inputmode="numeric" maxlength="1" aria-label="Cifra 3"><span></span><input inputmode="numeric" maxlength="1" aria-label="Cifra 4"><input inputmode="numeric" maxlength="1" aria-label="Cifra 5"><input inputmode="numeric" maxlength="1" aria-label="Cifra 6">
       </div>
+      <input id="accessPassword" class="viewer-password" type="password" autocomplete="current-password" placeholder="Password non vigilata (se richiesta)">
       <button id="connectButton" class="primary">Connetti display</button>
+      <button id="openViewerScanner" class="ghost full">Scansiona QR</button>
       <div class="secure-line"><i>✓</i> Peer-to-peer · Nessuna registrazione</div>
     </div>
   </div>
@@ -45,6 +47,7 @@
     <div id="controlHint" class="control-hint hidden">Tocca o trascina sul video · La tastiera controlla il PC</div>
     <div id="viewerToast" class="toast"></div>
   </main>
-  <script src="viewer.js"></script>
+  <section id="viewerScannerDialog" class="dialog-shell hidden" role="dialog" aria-modal="true" aria-labelledby="viewerScannerTitle"><div class="scanner-dialog panel"><button id="closeViewerScanner" class="dialog-close">×</button><span class="eyebrow">SCANNER MIRRORPC</span><h2 id="viewerScannerTitle">Inquadra il QR del PC</h2><div class="camera-box"><video id="viewerScannerVideo" playsinline muted></video><div class="camera-grid"><i></i><i></i><i></i><i></i><span></span></div><div id="viewerCameraMessage">Fotocamera pronta all’avvio</div></div><button id="startViewerCamera" class="primary full">Apri fotocamera</button></div></section>
+  <script src="vendor-jsqr.js"></script><script src="viewer.js"></script>
 </body>
 </html>

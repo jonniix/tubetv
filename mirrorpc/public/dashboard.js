@@ -65,11 +65,45 @@
     } catch { byId('serverStatus').textContent = 'Modalità web sicura'; byId('relayDetail').textContent = 'Apri l’app locale per Wake-on-LAN'; byId('relayLed').className = 'status-led'; }
   }
 
+  function formatDeviceId(value) { return String(value || '').replace(/\D/g, '').replace(/(\d{3})(?=\d)/g, '$1 ').trim(); }
+  async function passwordVerifier(password) {
+    const bytes = new TextEncoder().encode(password);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+  async function loadIdentity() {
+    try {
+      const response = await fetch('/api/device', { cache: 'no-store' });
+      const device = await response.json(); if (!response.ok) throw new Error(device.message);
+      byId('localDeviceId').textContent = formatDeviceId(device.id);
+      byId('localDeviceName').textContent = device.name;
+      byId('accessDeviceName').value = device.name;
+      byId('unattendedEnabled').checked = Boolean(device.unattended);
+      byId('passwordState').textContent = device.hasPassword ? 'Password protetta già configurata. Lasciala vuota per mantenerla.' : 'Obbligatoria, almeno 10 caratteri, per attivare questa modalità.';
+      return device;
+    } catch { byId('localDeviceName').textContent = 'Identità locale non disponibile'; return null; }
+  }
+  function openAccessSettings() { byId('accessSettingsDialog').classList.remove('hidden'); byId('accessDeviceName').focus(); }
+
   byId('deviceList').addEventListener('click', event => { const button = event.target.closest('[data-action]'), card = event.target.closest('.saved-device'); if (!button || !card) return; const device = devices.find(item => item.id === card.dataset.id); if (!device) return; if (button.dataset.action === 'wake') wake(device); if (button.dataset.action === 'connect') connectDevice(device); if (button.dataset.action === 'edit') openDeviceDialog(device); });
   byId('addDevice').addEventListener('click', () => openDeviceDialog());
   byId('deviceForm').addEventListener('submit', event => { event.preventDefault(); const item = { id: event.currentTarget.dataset.editing || newId(), name: byId('deviceName').value.trim(), ip: byId('deviceIp').value.trim(), mac: byId('deviceMac').value.trim().toUpperCase(), url: byId('deviceUrl').value.trim() }; const index = devices.findIndex(device => device.id === item.id); if (index >= 0) devices[index] = item; else devices.push(item); saveDevices(); byId('deviceDialog').classList.add('hidden'); render(); notify('Dispositivo salvato'); });
   byId('openScanner').addEventListener('click', openScanner); byId('startCamera').addEventListener('click', startCamera); byId('joinManual').addEventListener('click', () => joinValue(byId('manualCode').value));
+  byId('openAccessSettings').addEventListener('click', openAccessSettings);
+  byId('copyDeviceId').addEventListener('click', async () => { const id = byId('localDeviceId').textContent.replace(/\D/g, ''); await navigator.clipboard.writeText(id); notify('ID permanente copiato'); });
+  byId('accessSettingsForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const password = byId('unattendedPassword').value;
+    if (byId('unattendedEnabled').checked && password && password.length < 10) return notify('La password deve avere almeno 10 caratteri', true);
+    const payload = { name: byId('accessDeviceName').value.trim(), unattended: byId('unattendedEnabled').checked };
+    if (password) payload.passwordVerifier = await passwordVerifier(password);
+    try {
+      const response = await fetch('/api/device/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const result = await response.json(); if (!response.ok) throw new Error(result.message);
+      byId('unattendedPassword').value = ''; byId('accessSettingsDialog').classList.add('hidden'); await loadIdentity(); notify('Protezione accesso aggiornata');
+    } catch (error) { notify(error.message || 'Impossibile salvare le impostazioni', true); }
+  });
   document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => button.dataset.close === 'scannerDialog' ? closeScanner() : byId(button.dataset.close).classList.add('hidden')));
   byId('manualCode').addEventListener('input', event => { event.target.value = event.target.value.replace(/\D/g, '').slice(0, 6); });
-  render(); checkRelay();
+  render(); checkRelay(); loadIdentity();
 })();

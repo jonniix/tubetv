@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const dgram = require('dgram');
+const fs = require('fs');
 const http = require('http');
 const os = require('os');
 const path = require('path');
@@ -17,6 +18,36 @@ const server = http.createServer(app);
 const sessions = new Map();
 const execFileAsync = promisify(execFile);
 let controlAgent = null;
+
+const deviceDataDir = process.env.MIRRORPC_DATA_DIR || path.join(process.env.LOCALAPPDATA || __dirname, 'MirrorPCData');
+const deviceConfigPath = path.join(deviceDataDir, 'device.json');
+
+function newDeviceId() {
+  return String(crypto.randomInt(100000000000, 1000000000000));
+}
+
+function loadDeviceConfig() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(deviceConfigPath, 'utf8'));
+    if (saved && /^\d{12}$/.test(String(saved.id || ''))) return saved;
+  } catch {}
+  const created = { id: newDeviceId(), name: os.hostname(), unattended: false, passwordVerifier: '', createdAt: new Date().toISOString() };
+  fs.mkdirSync(deviceDataDir, { recursive: true });
+  fs.writeFileSync(deviceConfigPath, JSON.stringify(created, null, 2), { mode: 0o600 });
+  return created;
+}
+
+let deviceConfig = loadDeviceConfig();
+
+function saveDeviceConfig() {
+  fs.mkdirSync(deviceDataDir, { recursive: true });
+  fs.writeFileSync(deviceConfigPath, JSON.stringify(deviceConfig, null, 2), { mode: 0o600 });
+}
+
+function normalizeProof(value) {
+  const proof = String(value || '').toLowerCase();
+  return /^[a-f0-9]{64}$/.test(proof) ? proof : '';
+}
 
 app.disable('x-powered-by');
 app.get(['/', '/control'], (req, res) => res.sendFile(path.join(__dirname, 'control.html')));
@@ -52,19 +83,55 @@ function cleanupSession(code) {
 app.post('/api/session', async (req, res) => {
   const code = randomCode();
   const token = crypto.randomBytes(24).toString('base64url');
+  const challenge = crypto.randomBytes(24).toString('base64url');
   const host = lanAddress();
-  const joinUrl = `http://${host}:${PORT}/display.html?code=${code}`;
+  const joinUrl = `http://${host}:${PORT}/display.html?code=${code}&challenge=${encodeURIComponent(challenge)}`;
   const expiry = setTimeout(() => {
     const session = sessions.get(code);
     if (session && !session.host) cleanupSession(code);
   }, 5 * 60 * 1000);
-  sessions.set(code, { token, host: null, viewers: new Map(), createdAt: Date.now(), expiry });
+  sessions.set(code, { token, challenge, host: null, viewers: new Map(), createdAt: Date.now(), expiry });
   const qr = await QRCode.toDataURL(joinUrl, { margin: 1, width: 420, color: { dark: '#06131fff', light: '#f3f8ffff' } });
-  res.json({ code, token, joinUrl, qr, expiresIn: 300 });
+  res.json({ code, token, challenge, joinUrl, qr, expiresIn: 300 });
 });
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'MirrorPC', sessions: sessions.size, address: lanAddress(), port: PORT });
+});
+
+app.get('/api/device', (req, res) => {
+  res.set('cache-control', 'no-store');
+  res.json({ ok: true, id: deviceConfig.id, name: deviceConfig.name, unattended: Boolean(deviceConfig.unattended), hasPassword: Boolean(deviceConfig.passwordVerifier) });
+});
+
+app.post('/api/device/settings', (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ ok: false, message: 'Impostazioni consentite soltanto sul PC locale' });
+  const name = String(req.body?.name || '').trim().slice(0, 40) || os.hostname();
+  const unattended = Boolean(req.body?.unattended);
+  const passwordVerifier = normalizeProof(req.body?.passwordVerifier);
+  if (unattended && !passwordVerifier && !deviceConfig.passwordVerifier) {
+    return res.status(400).json({ ok: false, message: 'Imposta una password di almeno 10 caratteri per l’accesso non vigilato' });
+  }
+  deviceConfig.name = name;
+  deviceConfig.unattended = unattended;
+  if (passwordVerifier) deviceConfig.passwordVerifier = passwordVerifier;
+  if (!unattended && req.body?.clearPassword) deviceConfig.passwordVerifier = '';
+  saveDeviceConfig();
+  res.json({ ok: true, id: deviceConfig.id, name, unattended, hasPassword: Boolean(deviceConfig.passwordVerifier) });
+});
+
+app.post('/api/device/authorize', (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ ok: false, message: 'Verifica consentita soltanto all’app locale' });
+  if (!deviceConfig.unattended) return res.json({ ok: true, allowed: false, requiresApproval: true });
+  const challenge = String(req.body?.challenge || '');
+  const code = String(req.body?.code || '');
+  const proof = normalizeProof(req.body?.proof);
+  if (!challenge || !/^\d{6}$/.test(code) || !proof || !deviceConfig.passwordVerifier) {
+    return res.json({ ok: true, allowed: false, requiresApproval: false, message: 'Password richiesta o non valida' });
+  }
+  const expected = crypto.createHmac('sha256', Buffer.from(deviceConfig.passwordVerifier, 'hex')).update(`${code}:${challenge}`).digest('hex');
+  const allowed = safeTokenEqual(expected, proof);
+  res.json({ ok: true, allowed, requiresApproval: false, message: allowed ? '' : 'Password non valida' });
 });
 
 function isLoopback(req) {
@@ -230,7 +297,7 @@ wss.on('connection', ws => {
       session.viewers.set(viewerId, ws);
       ws.role = 'viewer'; ws.code = code; ws.viewerId = viewerId;
       send(ws, { type: 'viewer_ready', viewerId });
-      send(session.host, { type: 'viewer_join', viewerId, viewers: session.viewers.size });
+      send(session.host, { type: 'viewer_join', viewerId, viewers: session.viewers.size, proof: normalizeProof(msg.proof), challenge: session.challenge });
       return;
     }
 

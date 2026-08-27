@@ -13,7 +13,8 @@ do {
 if (file_exists($path)) json_response(['message' => 'Impossibile creare il codice'], 503);
 
 $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
-$session = ['code' => $code, 'token' => $token, 'createdAt' => time(), 'expiresAt' => time() + MIRROR_TTL, 'hostRegistered' => false, 'viewers' => [], 'messages' => ['host' => []]];
+$challenge = rtrim(strtr(base64_encode(random_bytes(24)), '+/', '-_'), '=');
+$session = ['code' => $code, 'token' => $token, 'challenge' => $challenge, 'createdAt' => time(), 'expiresAt' => time() + MIRROR_TTL, 'hostRegistered' => false, 'viewers' => [], 'messages' => ['host' => []]];
 if (file_put_contents($path, json_encode($session, JSON_UNESCAPED_SLASHES), LOCK_EX) === false) json_response(['message' => 'Impossibile salvare la sessione'], 500);
 
 $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
@@ -21,4 +22,4 @@ $scheme = $https ? 'https' : 'http';
 $hostName = preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', $_SERVER['HTTP_HOST'] ?? 'tubetv.online');
 $base = rtrim(str_replace('\\', '/', dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/mirrorpc/api/session.php'))), '/');
 $joinUrl = $scheme . '://' . $hostName . $base . '/display.html?code=' . $code;
-json_response(['code' => $code, 'token' => $token, 'joinUrl' => $joinUrl, 'expiresIn' => 300, 'transport' => 'php-poll']);
+json_response(['code' => $code, 'token' => $token, 'challenge' => $challenge, 'joinUrl' => $joinUrl, 'expiresIn' => 300, 'transport' => 'php-poll']);

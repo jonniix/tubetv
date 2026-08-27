@@ -4,12 +4,22 @@ const $ = id => document.getElementById(id);
 const inputs = [...document.querySelectorAll('#codeInputs input')];
 let ws, pc, viewerId, statsTimer, previousBytes = 0, previousTime = performance.now();
 let controlAvailable = false, controlEnabled = false, pendingMove = null, moveFrame = 0;
+let viewerScannerStream = null, viewerScannerTimer = 0;
 const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 const phpMode = location.pathname.includes('/mirrorpc/');
 const appBase = phpMode ? location.pathname.slice(0, location.pathname.indexOf('/mirrorpc/') + 9) : '';
 
 function toast(message, error = false) { const el = $('viewerToast'); el.textContent = message; el.className = `toast show${error ? ' error' : ''}`; clearTimeout(el.t); el.t = setTimeout(() => el.className = 'toast', 2800); }
 function codeValue() { return inputs.map(i => i.value).join(''); }
+
+async function accessProof(code, challenge) {
+  const password = $('accessPassword')?.value || '';
+  if (!password || !challenge) return '';
+  const verifier = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
+  const key = await crypto.subtle.importKey('raw', verifier, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const proof = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${code}:${challenge}`));
+  return [...new Uint8Array(proof)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
 
 inputs.forEach((input, index) => {
   input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, '').slice(-1); if (input.value && inputs[index + 1]) inputs[index + 1].focus(); });
@@ -36,7 +46,7 @@ async function connect() {
 }
 
 function attachSignalHandlers(code) {
-  ws.onopen = () => signal({ type: 'viewer_join', code });
+  ws.onopen = async () => signal({ type: 'viewer_join', code, proof: await accessProof(code, new URLSearchParams(location.search).get('challenge') || '') });
   ws.onmessage = async event => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'viewer_ready') { viewerId = msg.viewerId; $('connectDetail').textContent = 'Il PC sta preparando il flusso…'; }
@@ -66,7 +76,7 @@ function createPhpSocket(role, session) {
   socket.send = raw => {
     const msg = JSON.parse(raw);
     if (msg.type === 'viewer_join') {
-      post({ action: 'join', code: msg.code }).then(result => { socket.viewerId = result.viewerId; socket.readyState = WebSocket.OPEN; emit({ type: 'viewer_ready', viewerId: result.viewerId }); poll(); }).catch(error => emit({ type: 'error', message: error.message }));
+      post({ action: 'info', code: msg.code }).then(async info => post({ action: 'join', code: msg.code, proof: await accessProof(msg.code, info.challenge) })).then(result => { socket.viewerId = result.viewerId; socket.readyState = WebSocket.OPEN; emit({ type: 'viewer_ready', viewerId: result.viewerId }); poll(); }).catch(error => emit({ type: 'error', message: error.message }));
     } else if (msg.type === 'signal') {
       post({ action: 'send', role, code: session.code, viewerId: socket.viewerId, data: msg.data }).catch(error => emit({ type: 'error', message: error.message }));
     }
@@ -98,6 +108,7 @@ async function ensurePeer() {
 }
 
 async function receiveSignal(data) {
+  if (data.accessDenied) return fail('Accesso rifiutato dal PC o password non valida');
   if (data.controlStatus) {
     controlAvailable = Boolean(data.controlStatus.available);
     $('controlButton').classList.toggle('unavailable', !controlAvailable);
@@ -156,7 +167,36 @@ function toggleControl() {
   toast(controlEnabled ? 'Mouse e tastiera attivi' : 'Controllo disattivato');
 }
 
+function openViewerScanner() { $('viewerScannerDialog').classList.remove('hidden'); }
+function closeViewerScanner() {
+  clearInterval(viewerScannerTimer); viewerScannerTimer = 0;
+  viewerScannerStream?.getTracks().forEach(track => track.stop()); viewerScannerStream = null;
+  $('viewerScannerVideo').srcObject = null; $('viewerScannerDialog').classList.add('hidden');
+}
+function applyScannedValue(value) {
+  const match = String(value || '').match(/(?:code=)?(\d{6})/);
+  if (!match) return;
+  inputs.forEach((input, index) => input.value = match[1][index]);
+  closeViewerScanner(); toast('Codice QR acquisito');
+}
+async function startViewerScanner() {
+  try {
+    viewerScannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    const video = $('viewerScannerVideo'); video.srcObject = viewerScannerStream; await video.play(); $('viewerCameraMessage').textContent = 'Inquadra il QR mostrato sul PC';
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      viewerScannerTimer = setInterval(async () => { try { const codes = await detector.detect(video); if (codes[0]?.rawValue) applyScannedValue(codes[0].rawValue); } catch {} }, 450);
+    } else if (typeof window.jsQR === 'function') {
+      const canvas = document.createElement('canvas'), context = canvas.getContext('2d', { willReadFrequently: true });
+      viewerScannerTimer = setInterval(() => { if (video.readyState < 2) return; const scale = Math.min(1, 720 / video.videoWidth); canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale); context.drawImage(video, 0, 0, canvas.width, canvas.height); const image = context.getImageData(0, 0, canvas.width, canvas.height); const result = window.jsQR(image.data, image.width, image.height, { inversionAttempts: 'dontInvert' }); if (result?.data) applyScannedValue(result.data); }, 500);
+    } else $('viewerCameraMessage').textContent = 'Scanner non disponibile su questo dispositivo';
+  } catch { $('viewerCameraMessage').textContent = 'Fotocamera non disponibile: usa il codice manuale'; }
+}
+
 $('connectButton').addEventListener('click', connect);
+$('openViewerScanner').addEventListener('click', openViewerScanner);
+$('closeViewerScanner').addEventListener('click', closeViewerScanner);
+$('startViewerCamera').addEventListener('click', startViewerScanner);
 $('controlButton').addEventListener('click', toggleControl);
 $('fullscreen').addEventListener('click', () => document.documentElement.requestFullscreen?.());
 $('fitButton').addEventListener('click', () => { $('remoteVideo').classList.remove('fill'); $('fitButton').classList.add('active'); $('fillButton').classList.remove('active'); });

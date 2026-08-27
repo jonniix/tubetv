@@ -5,6 +5,9 @@ const state = { stream: null, ws: null, session: null, peers: new Map(), statsTi
 const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 const phpMode = location.pathname.includes('/mirrorpc/');
 const appBase = phpMode ? location.pathname.slice(0, location.pathname.indexOf('/mirrorpc/') + 9) : '';
+const localInstalled = location.port === '4177' && /^(?:localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+const relayBase = phpMode ? appBase : (localInstalled ? 'https://tubetv.online/mirrorpc' : '');
+const phpRelay = Boolean(relayBase);
 
 function toast(message, error = false) {
   const el = $('toast'); el.textContent = message; el.className = `toast show${error ? ' error' : ''}`;
@@ -63,7 +66,7 @@ function signal(message) {
 }
 
 async function createSession() {
-  const endpoint = phpMode ? `${appBase}/api/session.php` : '/api/session';
+  const endpoint = phpRelay ? `${relayBase}/api/session.php` : '/api/session';
   const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   if (!response.ok) throw new Error('Impossibile creare la sessione');
   state.session = await response.json();
@@ -81,7 +84,7 @@ async function createSession() {
 }
 
 function connectSignal() {
-  if (phpMode) {
+  if (phpRelay) {
     state.ws = createPhpSocket('host', state.session);
     attachSignalHandlers();
     return;
@@ -96,7 +99,11 @@ function attachSignalHandlers() {
   state.ws.onmessage = async event => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'host_ready') { $('serverStatus').textContent = 'Sessione protetta attiva'; return; }
-    if (msg.type === 'viewer_join') { $('viewerCount').textContent = msg.viewers; $('linkState').classList.add('active'); await createPeer(msg.viewerId); return; }
+    if (msg.type === 'viewer_join') {
+      const allowed = await authorizeViewer(msg);
+      if (!allowed) { signal({ type: 'signal', to: msg.viewerId, data: { accessDenied: true } }); return; }
+      $('viewerCount').textContent = msg.viewers; $('linkState').classList.add('active'); await createPeer(msg.viewerId); return;
+    }
     if (msg.type === 'viewer_left') { closePeer(msg.viewerId); $('viewerCount').textContent = msg.viewers; if (!msg.viewers) $('linkState').classList.remove('active'); return; }
     if (msg.type === 'signal') await receiveSignal(msg.from, msg.data);
     if (msg.type === 'error') toast(msg.message, true);
@@ -107,7 +114,7 @@ function attachSignalHandlers() {
 function createPhpSocket(role, session) {
   const socket = { readyState: WebSocket.CONNECTING, closed: false, onopen: null, onmessage: null, onclose: null };
   const post = async payload => {
-    const response = await fetch(`${appBase}/api/signal.php`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), cache: 'no-store' });
+    const response = await fetch(`${relayBase}/api/signal.php`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), cache: 'no-store' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || 'Errore di collegamento');
     return data;
@@ -134,6 +141,28 @@ function createPhpSocket(role, session) {
   return socket;
 }
 
+function askLocalApproval() {
+  const dialog = $('accessRequestDialog');
+  if (!dialog) return Promise.resolve(window.confirm('Un dispositivo vuole collegarsi a questo PC. Vuoi accettare?'));
+  dialog.classList.remove('hidden');
+  return new Promise(resolve => {
+    const finish = value => { dialog.classList.add('hidden'); $('approveAccess').onclick = null; $('rejectAccess').onclick = null; resolve(value); };
+    $('approveAccess').onclick = () => finish(true);
+    $('rejectAccess').onclick = () => finish(false);
+  });
+}
+
+async function authorizeViewer(message) {
+  if (!localInstalled) return askLocalApproval();
+  try {
+    const response = await fetch('/api/device/authorize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: state.session.code, challenge: message.challenge || state.session.challenge, proof: message.proof || '' }), cache: 'no-store' });
+    const result = await response.json();
+    if (result.allowed) return true;
+    if (result.requiresApproval) return askLocalApproval();
+    toast(result.message || 'Accesso non autorizzato', true); return false;
+  } catch { return askLocalApproval(); }
+}
+
 async function createPeer(viewerId) {
   const pc = new RTCPeerConnection({ iceServers });
   state.peers.set(viewerId, pc);
@@ -147,12 +176,12 @@ async function createPeer(viewerId) {
   const offer = await pc.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false });
   await pc.setLocalDescription(offer);
   signal({ type: 'signal', to: viewerId, data: { description: pc.localDescription } });
-  signal({ type: 'signal', to: viewerId, data: { controlStatus: { available: !phpMode, label: phpMode ? 'Apri MirrorPC dall’app Windows per controllare il PC' : 'Mouse e tastiera protetti attivi' } } });
+  signal({ type: 'signal', to: viewerId, data: { controlStatus: { available: localInstalled || !phpMode, label: localInstalled || !phpMode ? 'Mouse e tastiera protetti attivi' : 'Apri MirrorPC dall’app Windows per controllare il PC' } } });
 }
 
 async function receiveSignal(viewerId, data) {
   if (data?.control) {
-    if (phpMode) return;
+    if (!localInstalled && phpMode) return;
     fetch('/api/system/control', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ event: data.control }), cache: 'no-store'
