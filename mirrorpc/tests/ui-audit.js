@@ -12,14 +12,18 @@ async function run() {
   await new Promise(resolve => socket.once('open', resolve));
   const call = (method, params = {}) => new Promise(resolve => { const requestId = ++id; pending.set(requestId, resolve); socket.send(JSON.stringify({ id: requestId, method, params })); });
   await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-  await call('Runtime.evaluate', { expression: 'location.reload()', awaitPromise: true }); await new Promise(resolve => setTimeout(resolve, 900));
-  const result = await call('Runtime.evaluate', { expression: `JSON.stringify((()=>{const b=document.getElementById('openScanner').getBoundingClientRect();return{innerWidth,scrollWidth:document.documentElement.scrollWidth,scanner:{left:b.left,right:b.right,top:b.top,width:b.width},devices:document.querySelectorAll('.saved-device').length}})())`, returnByValue: true });
+  await call('Page.navigate', { url: 'http://127.0.0.1:4177/' }); await new Promise(resolve => setTimeout(resolve, 900));
+  const result = await call('Runtime.evaluate', { expression: `JSON.stringify((()=>{const b=document.getElementById('openScanner').getBoundingClientRect();return{innerWidth,scrollWidth:document.documentElement.scrollWidth,scanner:{left:b.left,right:b.right,top:b.top,width:b.width},devices:document.querySelectorAll('.saved-device').length,deviceId:document.getElementById('localDeviceId').textContent.replace(/\\D/g,'')}})())`, returnByValue: true });
   const metrics = JSON.parse(result.result.result.value);
   if (metrics.scrollWidth > metrics.innerWidth + 1) throw new Error(`Overflow mobile: ${metrics.scrollWidth}px su ${metrics.innerWidth}px`);
   if (metrics.scanner.left < 0 || metrics.scanner.right > metrics.innerWidth) throw new Error('Scanner fuori dal viewport mobile');
+  if (!/^\d{12}$/.test(metrics.deviceId)) throw new Error('ID permanente PC non disponibile');
   await call('Runtime.evaluate', { expression: `document.getElementById('openScanner').click()` });
   const dialog = await call('Runtime.evaluate', { expression: `!document.getElementById('scannerDialog').classList.contains('hidden')`, returnByValue: true });
   if (!dialog.result.result.value) throw new Error('Dialog scanner non aperto');
+  await call('Runtime.evaluate', { expression: `document.querySelector('[data-close="scannerDialog"]').click();document.getElementById('openAccessSettings').click()` });
+  const settings = await call('Runtime.evaluate', { expression: `!document.getElementById('accessSettingsDialog').classList.contains('hidden')`, returnByValue: true });
+  if (!settings.result.result.value) throw new Error('Impostazioni accesso non aperte');
   socket.close(); console.log(`UI mobile, scanner e ${metrics.devices} dispositivi: OK`);
 }
 
