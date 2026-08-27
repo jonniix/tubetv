@@ -8,6 +8,7 @@ let viewerScannerStream = null, viewerScannerTimer = 0;
 const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 const phpMode = location.pathname.includes('/mirrorpc/');
 const appBase = phpMode ? location.pathname.slice(0, location.pathname.indexOf('/mirrorpc/') + 9) : '';
+const cloudBase = phpMode ? appBase : 'https://tubetv.online/mirrorpc';
 
 function toast(message, error = false) { const el = $('viewerToast'); el.textContent = message; el.className = `toast show${error ? ' error' : ''}`; clearTimeout(el.t); el.t = setTimeout(() => el.className = 'toast', 2800); }
 function codeValue() { return inputs.map(i => i.value).join(''); }
@@ -27,7 +28,24 @@ inputs.forEach((input, index) => {
   input.addEventListener('paste', e => { const value = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6); if (value.length === 6) { e.preventDefault(); inputs.forEach((i, n) => i.value = value[n]); } });
 });
 
-function populateCode() { const code = new URLSearchParams(location.search).get('code')?.replace(/\D/g, '').slice(0, 6); if (code?.length === 6) inputs.forEach((input, i) => input.value = code[i]); }
+function populateCode() {
+  const params = new URLSearchParams(location.search), code = params.get('code')?.replace(/\D/g, '').slice(0, 6), device = params.get('device')?.replace(/\D/g, '').slice(0, 12);
+  if (code?.length === 6) inputs.forEach((input, i) => input.value = code[i]);
+  if (device?.length === 12) $('permanentDeviceId').value = device;
+}
+
+async function connectPermanent() {
+  const deviceId = $('permanentDeviceId').value.replace(/\D/g, '');
+  if (deviceId.length !== 12) return toast('Inserisci tutte le 12 cifre dell’ID PC', true);
+  $('connectPermanent').disabled = true; $('connectPermanent').textContent = 'Ricerca…';
+  try {
+    const response = await fetch(`${cloudBase}/api/device.php`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'resolve', deviceId }), cache: 'no-store' });
+    const result = await response.json(); if (!response.ok) throw new Error(result.message);
+    inputs.forEach((input, index) => input.value = result.code[index]);
+    toast('PC trovato · collegamento alla sessione'); await connect();
+  } catch (error) { toast(error.message || 'PC non raggiungibile', true); }
+  finally { $('connectPermanent').disabled = false; $('connectPermanent').textContent = 'Trova PC'; }
+}
 
 function signal(data) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data)); }
 
@@ -174,9 +192,11 @@ function closeViewerScanner() {
   $('viewerScannerVideo').srcObject = null; $('viewerScannerDialog').classList.add('hidden');
 }
 function applyScannedValue(value) {
-  const match = String(value || '').match(/(?:code=)?(\d{6})/);
-  if (!match) return;
-  inputs.forEach((input, index) => input.value = match[1][index]);
+  const raw = String(value || ''), device = raw.match(/[?&]device=(\d{12})/) || raw.match(/^\D*(\d{12})\D*$/);
+  if (device) { $('permanentDeviceId').value = device[1]; closeViewerScanner(); toast('ID permanente acquisito'); return; }
+  const code = raw.match(/[?&]code=(\d{6})/) || raw.match(/^\D*(\d{6})\D*$/);
+  if (!code) return;
+  inputs.forEach((input, index) => input.value = code[1][index]);
   closeViewerScanner(); toast('Codice QR acquisito');
 }
 async function startViewerScanner() {
@@ -194,6 +214,9 @@ async function startViewerScanner() {
 }
 
 $('connectButton').addEventListener('click', connect);
+$('connectPermanent').addEventListener('click', connectPermanent);
+$('permanentDeviceId').addEventListener('input', event => { event.target.value = event.target.value.replace(/\D/g, '').slice(0, 12); });
+$('permanentDeviceId').addEventListener('keydown', event => { if (event.key === 'Enter') connectPermanent(); });
 $('openViewerScanner').addEventListener('click', openViewerScanner);
 $('closeViewerScanner').addEventListener('click', closeViewerScanner);
 $('startViewerCamera').addEventListener('click', startViewerScanner);
@@ -227,5 +250,5 @@ $('remoteVideo').addEventListener('wheel', event => { if (controlEnabled) { even
 document.addEventListener('keydown', event => { if (controlEnabled && !event.repeat) { event.preventDefault(); sendControl({ type: 'key', code: event.code, state: 'down' }); } });
 document.addEventListener('keyup', event => { if (controlEnabled) { event.preventDefault(); sendControl({ type: 'key', code: event.code, state: 'up' }); } });
 $('display').addEventListener('pointerdown', () => { document.body.classList.remove('hud-idle'); setTimeout(() => document.body.classList.add('hud-idle'), 4000); $('remoteVideo').play().catch(()=>{}); });
-populateCode(); if (codeValue().length === 6) setTimeout(connect, 350);
+populateCode(); if (codeValue().length === 6) setTimeout(connect, 350); else if ($('permanentDeviceId').value.length === 12) setTimeout(connectPermanent, 350);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});

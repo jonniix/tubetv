@@ -80,6 +80,7 @@ async function createSession() {
   $('code').textContent = `${state.session.code.slice(0, 3)} ${state.session.code.slice(3)}`;
   $('copyLink').disabled = false;
   startCountdown(state.session.expiresIn);
+  if (localInstalled) fetch('/api/device/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: state.session.code }) }).catch(() => {});
   connectSignal();
 }
 
@@ -275,6 +276,7 @@ async function start() {
 }
 
 function stop() {
+  if (localInstalled) fetch('/api/device/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: '' }) }).catch(() => {});
   state.stream?.getTracks().forEach(t => t.stop()); state.stream = null;
   for (const id of [...state.peers.keys()]) closePeer(id);
   state.ws?.close(); state.ws = null; clearInterval(state.statsTimer); clearInterval(state.countdown);

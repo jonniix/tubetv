@@ -77,6 +77,8 @@
       const device = await response.json(); if (!response.ok) throw new Error(device.message);
       byId('localDeviceId').textContent = formatDeviceId(device.id);
       byId('localDeviceName').textContent = device.name;
+      const permanentUrl = `https://tubetv.online/mirrorpc/display.html?device=${device.id}`;
+      const qr = qrcode(0, 'M'); qr.addData(permanentUrl); qr.make(); byId('localDeviceQr').src = qr.createDataURL(4, 8);
       byId('accessDeviceName').value = device.name;
       byId('unattendedEnabled').checked = Boolean(device.unattended);
       byId('passwordState').textContent = device.hasPassword ? 'Password protetta già configurata. Lasciala vuota per mantenerla.' : 'Obbligatoria, almeno 10 caratteri, per attivare questa modalità.';

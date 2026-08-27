@@ -5,7 +5,13 @@
   function toast(message, error = false) { const node = byId('toast'); node.textContent = message; node.className = `toast show${error ? ' error' : ''}`; clearTimeout(node.t); node.t = setTimeout(() => node.className = 'toast', 2800); }
   function openJoin() { byId('joinDialog').classList.remove('hidden'); byId('manualCode').focus(); }
   function closeJoin() { clearInterval(timer); timer = 0; stream?.getTracks().forEach(track => track.stop()); stream = null; byId('scannerVideo').srcObject = null; byId('joinDialog').classList.add('hidden'); }
-  function join(value) { const match = String(value || '').match(/(?:code=)?(\d{6})/); if (!match) return toast('Inserisci un codice MirrorPC di 6 cifre', true); closeJoin(); location.href = `display.html?code=${match[1]}`; }
+  function join(value) {
+    const raw = String(value || ''), device = raw.match(/[?&]device=(\d{12})/) || raw.match(/^\D*(\d{12})\D*$/);
+    if (device) { closeJoin(); location.href = `display.html?device=${device[1]}`; return; }
+    const code = raw.match(/[?&]code=(\d{6})/) || raw.match(/^\D*(\d{6})\D*$/);
+    if (!code) return toast('Inserisci un codice di 6 cifre o un ID PC di 12 cifre', true);
+    closeJoin(); location.href = `display.html?code=${code[1]}`;
+  }
   async function startCamera() {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); const video = byId('scannerVideo'); video.srcObject = stream; await video.play(); byId('cameraMessage').textContent = 'Inquadra il QR mostrato sul PC';
@@ -14,4 +20,5 @@
     } catch { byId('cameraMessage').textContent = 'Fotocamera non disponibile · usa il codice manuale'; }
   }
   byId('openJoin').addEventListener('click', openJoin); byId('openJoinHero').addEventListener('click', openJoin); byId('closeJoin').addEventListener('click', closeJoin); byId('startCamera').addEventListener('click', startCamera); byId('joinManual').addEventListener('click', () => join(byId('manualCode').value)); byId('manualCode').addEventListener('input', event => event.target.value = event.target.value.replace(/\D/g, '').slice(0, 6)); byId('manualCode').addEventListener('keydown', event => { if (event.key === 'Enter') join(event.currentTarget.value); });
+  byId('joinPermanent').addEventListener('click', () => join(byId('permanentPortalId').value)); byId('permanentPortalId').addEventListener('input', event => event.target.value = event.target.value.replace(/\D/g, '').slice(0, 12)); byId('permanentPortalId').addEventListener('keydown', event => { if (event.key === 'Enter') join(event.currentTarget.value); });
 })();

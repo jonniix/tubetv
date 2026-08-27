@@ -31,13 +31,16 @@ function loadDeviceConfig() {
     const saved = JSON.parse(fs.readFileSync(deviceConfigPath, 'utf8'));
     if (saved && /^\d{12}$/.test(String(saved.id || ''))) return saved;
   } catch {}
-  const created = { id: newDeviceId(), name: os.hostname(), unattended: false, passwordVerifier: '', createdAt: new Date().toISOString() };
+  const created = { id: newDeviceId(), cloudToken: crypto.randomBytes(32).toString('base64url'), name: os.hostname(), unattended: false, passwordVerifier: '', createdAt: new Date().toISOString() };
   fs.mkdirSync(deviceDataDir, { recursive: true });
   fs.writeFileSync(deviceConfigPath, JSON.stringify(created, null, 2), { mode: 0o600 });
   return created;
 }
 
 let deviceConfig = loadDeviceConfig();
+if (!deviceConfig.cloudToken) { deviceConfig.cloudToken = crypto.randomBytes(32).toString('base64url'); saveDeviceConfig(); }
+let activeSessionCode = '';
+const cloudDeviceEndpoint = process.env.MIRRORPC_DEVICE_ENDPOINT || 'https://tubetv.online/mirrorpc/api/device.php';
 
 function saveDeviceConfig() {
   fs.mkdirSync(deviceDataDir, { recursive: true });
@@ -47,6 +50,13 @@ function saveDeviceConfig() {
 function normalizeProof(value) {
   const proof = String(value || '').toLowerCase();
   return /^[a-f0-9]{64}$/.test(proof) ? proof : '';
+}
+
+async function registerCloudDevice() {
+  try {
+    const response = await fetch(cloudDeviceEndpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'register', deviceId: deviceConfig.id, token: deviceConfig.cloudToken, sessionCode: activeSessionCode }) });
+    return response.ok;
+  } catch { return false; }
 }
 
 app.disable('x-powered-by');
@@ -132,6 +142,15 @@ app.post('/api/device/authorize', (req, res) => {
   const expected = crypto.createHmac('sha256', Buffer.from(deviceConfig.passwordVerifier, 'hex')).update(`${code}:${challenge}`).digest('hex');
   const allowed = safeTokenEqual(expected, proof);
   res.json({ ok: true, allowed, requiresApproval: false, message: allowed ? '' : 'Password non valida' });
+});
+
+app.post('/api/device/session', (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ ok: false, message: 'Aggiornamento consentito soltanto all’app locale' });
+  const code = String(req.body?.code || '');
+  if (code && !/^\d{6}$/.test(code)) return res.status(400).json({ ok: false, message: 'Codice sessione non valido' });
+  activeSessionCode = code;
+  registerCloudDevice().then(ok => { if (!ok) console.error('Registro ID MirrorPC temporaneamente non raggiungibile'); });
+  res.json({ ok: true, deviceId: deviceConfig.id, sessionCode: activeSessionCode });
 });
 
 function isLoopback(req) {
@@ -327,8 +346,10 @@ const heartbeat = setInterval(() => {
     ws.isAlive = false; ws.ping();
   }
 }, 20000);
+const deviceHeartbeat = setInterval(registerCloudDevice, 30000);
+registerCloudDevice();
 
-server.on('close', () => clearInterval(heartbeat));
+server.on('close', () => { clearInterval(heartbeat); clearInterval(deviceHeartbeat); });
 server.on('error', error => {
   if (error && error.code === 'EADDRINUSE') {
     console.error(`\nMirrorPC risulta gia attivo sulla porta ${PORT}. Apri http://127.0.0.1:${PORT}/\n`);
