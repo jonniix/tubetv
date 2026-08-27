@@ -2,12 +2,22 @@
 
 MirrorPC trasforma iPad, Android o un altro computer in un display wireless del PC tramite WebRTC.
 
+La dashboard Control aggiunge dispositivi salvati, rilevamento online nella LAN, Wake-on-LAN, scanner QR con codice manuale e controllo mouse/tastiera per le sessioni avviate dall'app locale Windows.
+
 ## Avvio rapido
 
 1. Fai doppio clic su `Avvia MirrorPC.bat`.
 2. Nel browser del PC premi **Avvia condivisione** e scegli lo schermo.
 3. Scansiona il QR con il tablet collegato alla stessa rete Wi-Fi.
 4. Sul tablet usa **Schermo intero** e ruotalo in orizzontale.
+
+## Controllo e Wake-on-LAN
+
+- Aggiungi un PC dalla colonna **I miei PC**, specificando IP locale e MAC Ethernet.
+- Il pulsante `ϟ` invia il Magic Packet dalla versione locale di MirrorPC.
+- Il pulsante **Scansiona** apre la fotocamera; sui browser senza scanner nativo viene usato il decoder locale jsQR.
+- Durante una sessione locale, sul ricevitore premi **Controlla** per abilitare puntatore e tastiera.
+- Le API Wake-on-LAN sono limitate alla rete privata; l'iniezione input è accettata esclusivamente dall'host loopback.
 
 La prima esecuzione installa automaticamente tre dipendenze Node.js. Windows potrebbe chiedere di consentire Node.js sulla rete privata: confermare solo per **Reti private**.
 

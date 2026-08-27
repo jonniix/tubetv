@@ -61,7 +61,8 @@
   <section id="extendDialog" class="dialog-shell hidden" role="dialog" aria-modal="true" aria-labelledby="extendTitle">
     <div class="dialog-card panel">
       <button id="closeExtendDialog" class="dialog-close" aria-label="Chiudi">×</button>
-      <div class="dialog-icon">▱</div><div class="eyebrow">MIRRORPC EXTEND</div>
+      <div class="dialog-icon">▱</div>
+      <div class="eyebrow">MIRRORPC EXTEND</div>
       <h2 id="extendTitle">Prepara il secondo schermo</h2>
       <p id="extendMessage">MirrorPC sta controllando la configurazione di Windows.</p>
       <div class="setup-steps">
@@ -69,7 +70,11 @@
         <div><span>2</span><p><b>Scegli “Estendi questi schermi”</b><small>Windows creerà uno spazio desktop indipendente.</small></p></div>
         <div><span>3</span><p><b>Condividi il display MirrorPC</b><small>Selezionalo nella finestra che apparirà.</small></p></div>
       </div>
-      <div class="dialog-actions"><a id="downloadExtendSetup" class="primary action-link" href="Setup-MirrorPC-Estendi.bat" download>Scarica setup Estendi</a><button id="openDisplaySettings" class="ghost">Apri impostazioni schermo</button><button id="continueExtend" class="ghost">Driver già installato · Continua</button></div>
+      <div class="dialog-actions">
+        <a id="downloadExtendSetup" class="primary action-link" href="Setup-MirrorPC-Estendi.bat" download>Scarica setup Estendi</a>
+        <button id="openDisplaySettings" class="ghost">Apri impostazioni schermo</button>
+        <button id="continueExtend" class="ghost">Driver già installato · Continua</button>
+      </div>
       <p class="dialog-note">Il driver non viene installato senza il tuo consenso. Il setup usa il pacchetto ufficiale VirtualDrivers tramite Winget.</p>
     </div>
   </section>

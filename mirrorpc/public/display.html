@@ -36,11 +36,13 @@
       <button id="fullscreen" class="round" aria-label="Schermo intero">⛶</button>
     </header>
     <footer class="display-controls">
+      <button id="controlButton" class="control remote-control unavailable" title="In attesa dell’host"><span>◎</span>Controlla</button>
       <button id="fitButton" class="control active"><span>▣</span>Adatta</button>
       <button id="fillButton" class="control"><span>▰</span>Riempi</button>
       <button id="muteButton" class="control"><span>◉</span>Audio</button>
       <button id="disconnectButton" class="control danger"><span>×</span>Chiudi</button>
     </footer>
+    <div id="controlHint" class="control-hint hidden">Tocca o trascina sul video · La tastiera controlla il PC</div>
     <div id="viewerToast" class="toast"></div>
   </main>
   <script src="viewer.js"></script>

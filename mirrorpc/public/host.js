@@ -25,23 +25,37 @@ async function refreshDisplayStatus() {
     if (!response.ok) throw new Error('local-api-unavailable');
     state.systemDisplay = await response.json();
     if (state.systemDisplay.driverInstalled) {
-      $('extendStatus').textContent = 'Driver pronto'; extendButton.classList.add('ready'); extendButton.classList.remove('needs-setup');
+      $('extendStatus').textContent = 'Driver pronto';
+      extendButton.classList.add('ready');
+      extendButton.classList.remove('needs-setup');
     } else {
-      $('extendStatus').textContent = state.systemDisplay.supported ? 'Setup necessario' : 'Richiede Windows'; extendButton.classList.add('needs-setup'); extendButton.classList.remove('ready');
+      $('extendStatus').textContent = state.systemDisplay.supported ? 'Setup necessario' : 'Richiede Windows';
+      extendButton.classList.add('needs-setup');
+      extendButton.classList.remove('ready');
     }
   } catch {
-    state.systemDisplay = null; $('extendStatus').textContent = 'Richiede app Windows'; extendButton.classList.add('needs-setup');
+    state.systemDisplay = null;
+    $('extendStatus').textContent = 'Richiede app Windows';
+    extendButton.classList.add('needs-setup');
   }
 }
 
-function openExtendDialog(message) { $('extendMessage').textContent = message || 'Installa il componente firmato e configura Windows in modalità Estendi.'; $('extendDialog').classList.remove('hidden'); $('openDisplaySettings').disabled = !state.systemDisplay?.supported; }
+function openExtendDialog(message) {
+  $('extendMessage').textContent = message || 'Installa il componente firmato e configura Windows in modalità Estendi.';
+  $('extendDialog').classList.remove('hidden');
+  $('openDisplaySettings').disabled = !state.systemDisplay?.supported;
+}
+
 function closeExtendDialog() { $('extendDialog').classList.add('hidden'); }
+
 async function openWindowsDisplaySettings() {
   try {
     const response = await fetch('/api/system/open-display-settings', { method: 'POST' });
     if (!response.ok) throw new Error();
     toast('Impostazioni schermo aperte su Windows');
-  } catch { toast('Apri Impostazioni → Sistema → Schermo sul PC host', true); }
+  } catch {
+    toast('Apri Impostazioni → Sistema → Schermo sul PC host', true);
+  }
 }
 
 function signal(message) {
@@ -133,9 +147,18 @@ async function createPeer(viewerId) {
   const offer = await pc.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false });
   await pc.setLocalDescription(offer);
   signal({ type: 'signal', to: viewerId, data: { description: pc.localDescription } });
+  signal({ type: 'signal', to: viewerId, data: { controlStatus: { available: !phpMode, label: phpMode ? 'Apri MirrorPC dall’app Windows per controllare il PC' : 'Mouse e tastiera protetti attivi' } } });
 }
 
 async function receiveSignal(viewerId, data) {
+  if (data?.control) {
+    if (phpMode) return;
+    fetch('/api/system/control', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ event: data.control }), cache: 'no-store'
+    }).catch(() => {});
+    return;
+  }
   const pc = state.peers.get(viewerId); if (!pc) return;
   if (data.description) await pc.setRemoteDescription(data.description);
   if (data.candidate) { try { await pc.addIceCandidate(data.candidate); } catch {} }
@@ -195,7 +218,9 @@ function startCountdown(seconds) {
 async function start() {
   try {
     if (state.mode === 'extend' && !state.systemDisplay?.driverInstalled) {
-      openExtendDialog(state.systemDisplay?.supported ? 'Il display virtuale firmato non risulta ancora installato su questo PC.' : 'Per Estendi devi avviare MirrorPC dall’app Windows sul PC host.');
+      openExtendDialog(state.systemDisplay?.supported
+        ? 'Il display virtuale firmato non risulta ancora installato su questo PC.'
+        : 'Per Estendi devi avviare MirrorPC dall’app Windows sul PC host.');
       return;
     }
     $('startButton').disabled = true; $('startButton').querySelector('span').textContent = 'Seleziona lo schermo…';
@@ -246,8 +271,11 @@ $('continueExtend').addEventListener('click', async () => {
     return;
   }
   await refreshDisplayStatus();
-  if (state.systemDisplay?.driverInstalled) { closeExtendDialog(); await openWindowsDisplaySettings(); toast('Imposta Estendi, poi premi Avvia desktop esteso'); }
-  else toast('Driver non rilevato: completa prima il setup', true);
+  if (state.systemDisplay?.driverInstalled) {
+    closeExtendDialog();
+    await openWindowsDisplaySettings();
+    toast('Imposta Estendi, poi premi Avvia desktop esteso');
+  } else toast('Driver non rilevato: completa prima il setup', true);
 });
 $('quality').addEventListener('change', applyQuality); $('fps').addEventListener('change', applyQuality);
 $('copyLink').addEventListener('click', async () => { await navigator.clipboard.writeText(state.joinUrl); toast('Link copiato'); });

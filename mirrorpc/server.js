@@ -1,10 +1,11 @@
 'use strict';
 
 const crypto = require('crypto');
+const dgram = require('dgram');
 const http = require('http');
 const os = require('os');
 const path = require('path');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const express = require('express');
 const QRCode = require('qrcode');
@@ -15,6 +16,7 @@ const app = express();
 const server = http.createServer(app);
 const sessions = new Map();
 const execFileAsync = promisify(execFile);
+let controlAgent = null;
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '32kb' }));
@@ -50,7 +52,7 @@ app.post('/api/session', async (req, res) => {
   const code = randomCode();
   const token = crypto.randomBytes(24).toString('base64url');
   const host = lanAddress();
-  const joinUrl = `http://${host}:${PORT}/?code=${code}`;
+  const joinUrl = `http://${host}:${PORT}/display.html?code=${code}`;
   const expiry = setTimeout(() => {
     const session = sessions.get(code);
     if (session && !session.host) cleanupSession(code);
@@ -69,14 +71,91 @@ function isLoopback(req) {
   return address === '127.0.0.1' || address === '::1';
 }
 
+function clientAddress(req) {
+  return String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+}
+
+function isLanClient(req) {
+  const address = clientAddress(req);
+  return address === '127.0.0.1' || address === '::1' || /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(address);
+}
+
+function validLanHost(value) {
+  const host = String(value || '').trim();
+  if (!/^(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))(?:\.\d{1,3}){2,3}$/.test(host)) return '';
+  const parts = host.split('.').map(Number);
+  return parts.length === 4 && parts.every(part => part >= 0 && part <= 255) ? host : '';
+}
+
+app.get('/api/devices/status', async (req, res) => {
+  if (!isLanClient(req)) return res.status(403).json({ ok: false, message: 'Disponibile soltanto nella rete locale' });
+  const host = validLanHost(req.query.host);
+  if (!host) return res.status(400).json({ ok: false, message: 'Indirizzo LAN non valido' });
+  const started = Date.now();
+  try {
+    const args = process.platform === 'win32' ? ['-n', '1', '-w', '1200', host] : ['-c', '1', '-W', '1', host];
+    await execFileAsync(process.platform === 'win32' ? 'ping.exe' : 'ping', args, { windowsHide: true, timeout: 2200 });
+    res.json({ ok: true, online: true, host, latencyMs: Date.now() - started });
+  } catch {
+    res.json({ ok: true, online: false, host, latencyMs: null });
+  }
+});
+
+app.post('/api/devices/wake', async (req, res) => {
+  if (!isLanClient(req)) return res.status(403).json({ ok: false, message: 'Wake-on-LAN consentito soltanto dalla rete locale' });
+  const compact = String(req.body?.mac || '').replace(/[^a-fA-F0-9]/g, '');
+  if (!/^[a-fA-F0-9]{12}$/.test(compact)) return res.status(400).json({ ok: false, message: 'MAC address non valido' });
+  const mac = Buffer.from(compact, 'hex');
+  const packet = Buffer.concat([Buffer.alloc(6, 0xff), ...Array.from({ length: 16 }, () => mac)]);
+  const socket = dgram.createSocket('udp4');
+  try {
+    await new Promise((resolve, reject) => {
+      socket.once('error', reject);
+      socket.bind(() => { socket.setBroadcast(true); socket.send(packet, 0, packet.length, 9, '255.255.255.255', error => error ? reject(error) : resolve()); });
+    });
+    res.json({ ok: true, message: 'Magic Packet inviato' });
+  } catch {
+    res.status(500).json({ ok: false, message: 'Invio Wake-on-LAN non riuscito' });
+  } finally { socket.close(); }
+});
+
+function ensureControlAgent() {
+  if (process.platform !== 'win32') return null;
+  if (controlAgent && !controlAgent.killed) return controlAgent;
+  controlAgent = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'control-agent.ps1')], {
+    windowsHide: true, stdio: ['pipe', 'ignore', 'pipe']
+  });
+  controlAgent.on('exit', () => { controlAgent = null; });
+  controlAgent.stderr.on('data', data => console.error(`Remote input: ${String(data).trim()}`));
+  return controlAgent;
+}
+
+app.post('/api/system/control', (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ ok: false, message: 'Controllo consentito soltanto all’host locale' });
+  const event = req.body?.event;
+  if (!event || !['move', 'button', 'wheel', 'key'].includes(event.type)) return res.status(400).json({ ok: false, message: 'Comando non valido' });
+  const agent = ensureControlAgent();
+  if (!agent) return res.status(409).json({ ok: false, message: 'Controllo remoto disponibile sull’app Windows' });
+  agent.stdin.write(`${JSON.stringify(event)}\n`);
+  res.json({ ok: true });
+});
+
 async function windowsDisplayStatus() {
   if (process.platform !== 'win32') {
     return { supported: false, platform: process.platform, driverInstalled: false, adapters: [] };
   }
   try {
     const [displayResult, monitorResult] = await Promise.all([
-      execFileAsync('pnputil.exe', ['/enum-devices', '/class', 'Display'], { windowsHide: true, timeout: 5000, maxBuffer: 128 * 1024 }),
-      execFileAsync('pnputil.exe', ['/enum-devices', '/class', 'Monitor'], { windowsHide: true, timeout: 5000, maxBuffer: 128 * 1024 })
+      execFileAsync('pnputil.exe', ['/enum-devices', '/class', 'Display'], {
+        windowsHide: true,
+        timeout: 5000,
+        maxBuffer: 128 * 1024
+      }),
+      execFileAsync('pnputil.exe', ['/enum-devices', '/class', 'Monitor'], {
+        windowsHide: true,
+        timeout: 5000,
+        maxBuffer: 128 * 1024
+      })
     ]);
     const raw = `${displayResult.stdout}\n${monitorResult.stdout}`;
     const driverInstalled = /virtual\s*(display|monitor)|iddsample|parsec.*display/i.test(raw);

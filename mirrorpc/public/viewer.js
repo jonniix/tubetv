@@ -3,6 +3,7 @@
 const $ = id => document.getElementById(id);
 const inputs = [...document.querySelectorAll('#codeInputs input')];
 let ws, pc, viewerId, statsTimer, previousBytes = 0, previousTime = performance.now();
+let controlAvailable = false, controlEnabled = false, pendingMove = null, moveFrame = 0;
 const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 const phpMode = location.pathname.includes('/mirrorpc/');
 const appBase = phpMode ? location.pathname.slice(0, location.pathname.indexOf('/mirrorpc/') + 9) : '';
@@ -97,6 +98,13 @@ async function ensurePeer() {
 }
 
 async function receiveSignal(data) {
+  if (data.controlStatus) {
+    controlAvailable = Boolean(data.controlStatus.available);
+    $('controlButton').classList.toggle('unavailable', !controlAvailable);
+    $('controlButton').title = data.controlStatus.label || '';
+    if (!controlAvailable) $('controlButton').innerHTML = '<span>◎</span>Solo visuale';
+    return;
+  }
   const peer = await ensurePeer();
   if (data.description) {
     await peer.setRemoteDescription(data.description);
@@ -117,7 +125,39 @@ function startStats() {
 function fail(message) { $('connectDetail').textContent = message; $('connecting').classList.remove('hidden'); $('connecting').classList.add('failed'); toast(message, true); }
 function disconnect() { clearInterval(statsTimer); pc?.close(); ws?.close(); pc = ws = null; $('remoteVideo').srcObject = null; $('display').classList.add('hidden'); $('joinScreen').classList.remove('hidden'); $('connectButton').disabled = false; $('connectButton').textContent = 'Connetti display'; }
 
+function sendControl(event) {
+  if (controlEnabled && ws?.readyState === WebSocket.OPEN) signal({ type: 'signal', data: { control: event } });
+}
+
+function videoPoint(event) {
+  const video = $('remoteVideo'), box = video.getBoundingClientRect();
+  let left = box.left, top = box.top, width = box.width, height = box.height;
+  if (!video.classList.contains('fill') && video.videoWidth && video.videoHeight) {
+    const mediaRatio = video.videoWidth / video.videoHeight, boxRatio = box.width / box.height;
+    if (mediaRatio > boxRatio) { height = box.width / mediaRatio; top += (box.height - height) / 2; }
+    else { width = box.height * mediaRatio; left += (box.width - width) / 2; }
+  }
+  return { x: Math.max(0, Math.min(1, (event.clientX - left) / width)), y: Math.max(0, Math.min(1, (event.clientY - top) / height)) };
+}
+
+function queueMove(event) {
+  pendingMove = videoPoint(event);
+  if (moveFrame) return;
+  moveFrame = requestAnimationFrame(() => { moveFrame = 0; if (pendingMove) sendControl({ type: 'move', ...pendingMove }); });
+}
+
+function toggleControl() {
+  if (!controlAvailable) return toast('Avvia MirrorPC dall’app Windows sul PC da controllare', true);
+  controlEnabled = !controlEnabled;
+  $('controlButton').classList.toggle('active', controlEnabled);
+  $('controlButton').innerHTML = controlEnabled ? '<span>●</span>Controllo ON' : '<span>◎</span>Controlla';
+  $('controlHint').classList.toggle('hidden', !controlEnabled);
+  $('remoteVideo').classList.toggle('control-active', controlEnabled);
+  toast(controlEnabled ? 'Mouse e tastiera attivi' : 'Controllo disattivato');
+}
+
 $('connectButton').addEventListener('click', connect);
+$('controlButton').addEventListener('click', toggleControl);
 $('fullscreen').addEventListener('click', () => document.documentElement.requestFullscreen?.());
 $('fitButton').addEventListener('click', () => { $('remoteVideo').classList.remove('fill'); $('fitButton').classList.add('active'); $('fillButton').classList.remove('active'); });
 $('fillButton').addEventListener('click', () => { $('remoteVideo').classList.add('fill'); $('fillButton').classList.add('active'); $('fitButton').classList.remove('active'); });
@@ -131,6 +171,21 @@ $('muteButton').addEventListener('click', async e => {
   toast(video.muted ? 'Audio disattivato' : 'Audio attivato');
 });
 $('disconnectButton').addEventListener('click', disconnect);
+$('remoteVideo').addEventListener('pointermove', event => { if (controlEnabled) { event.preventDefault(); queueMove(event); } });
+$('remoteVideo').addEventListener('pointerdown', event => {
+  if (!controlEnabled) return;
+  event.preventDefault(); $('remoteVideo').setPointerCapture?.(event.pointerId); queueMove(event);
+  sendControl({ type: 'button', button: ['left', 'middle', 'right'][event.button] || 'left', state: 'down' });
+});
+$('remoteVideo').addEventListener('pointerup', event => {
+  if (!controlEnabled) return;
+  event.preventDefault(); queueMove(event);
+  sendControl({ type: 'button', button: ['left', 'middle', 'right'][event.button] || 'left', state: 'up' });
+});
+$('remoteVideo').addEventListener('contextmenu', event => { if (controlEnabled) event.preventDefault(); });
+$('remoteVideo').addEventListener('wheel', event => { if (controlEnabled) { event.preventDefault(); sendControl({ type: 'wheel', delta: Math.sign(event.deltaY) * 120 }); } }, { passive: false });
+document.addEventListener('keydown', event => { if (controlEnabled && !event.repeat) { event.preventDefault(); sendControl({ type: 'key', code: event.code, state: 'down' }); } });
+document.addEventListener('keyup', event => { if (controlEnabled) { event.preventDefault(); sendControl({ type: 'key', code: event.code, state: 'up' }); } });
 $('display').addEventListener('pointerdown', () => { document.body.classList.remove('hud-idle'); setTimeout(() => document.body.classList.add('hud-idle'), 4000); $('remoteVideo').play().catch(()=>{}); });
 populateCode(); if (codeValue().length === 6) setTimeout(connect, 350);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});

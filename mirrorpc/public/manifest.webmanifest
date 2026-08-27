@@ -1,7 +1,7 @@
 {
-  "name": "MirrorPC Display",
+  "name": "MirrorPC Control",
   "short_name": "MirrorPC",
-  "start_url": "./display.html",
+  "start_url": "./",
   "display": "fullscreen",
   "background_color": "#03070c",
   "theme_color": "#07111d",

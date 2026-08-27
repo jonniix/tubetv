@@ -9,3 +9,10 @@ MirrorPC può utilizzare **Virtual Display Driver** di VirtualDrivers per creare
 Il driver non è incluso né modificato nel repository MirrorPC. Il setup avvia Winget, che scarica e installa il pacchetto pubblicato dal relativo manutentore. L'utente deve confermare esplicitamente l'installazione.
 
 Il progetto WinPad è stato consultato come riferimento architetturale per cattura, codifica WebRTC e profili iPad, ma il suo codice non è incluso in questa versione.
+
+## jsQR
+
+MirrorPC include `jsQR` come decoder QR locale di fallback per i browser mobili privi di `BarcodeDetector`.
+
+- Progetto: https://github.com/cozmo/jsQR
+- Licenza: Apache License 2.0

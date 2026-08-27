@@ -20,16 +20,20 @@ where winget.exe >nul 2>nul
 if errorlevel 1 (
   echo  ERRORE: Winget non e disponibile su questo PC.
   echo  Aggiorna "Programma di installazione app" dal Microsoft Store.
+  echo.
   pause
   exit /b 1
 )
+
 echo  Installazione in corso. Non chiudere questa finestra...
 winget install --id VirtualDrivers.Virtual-Display-Driver -e --accept-source-agreements --accept-package-agreements --force
 if errorlevel 1 (
+  echo.
   echo  Installazione non completata. Nessuna modifica a MirrorPC.
   pause
   exit /b 1
 )
+
 echo.
 set "MIRRORPC_VDD_CONTROL="
 for /d %%D in ("%LOCALAPPDATA%\Microsoft\WinGet\Packages\VirtualDrivers.Virtual-Display-Driver_*") do if exist "%%~fD\VDD Control.exe" set "MIRRORPC_VDD_CONTROL=%%~fD\VDD Control.exe"
@@ -60,6 +64,7 @@ if not defined MIRRORPC_DRIVER_FOUND (
 echo  Driver rilevato correttamente.
 echo  In "Piu schermi" scegli "Estendi questi schermi".
 start "" ms-settings:display
+echo.
 echo  Torna su MirrorPC, scegli Estendi e premi Avvia desktop esteso.
 pause
 endlocal
