@@ -187,6 +187,10 @@ app.post('/api/system/open-display-settings', (req, res) => {
 app.get('/host', (req, res) => res.sendFile(path.join(__dirname, 'public', 'host.html')));
 
 const wss = new WebSocketServer({ server, path: '/signal', maxPayload: 256 * 1024 });
+wss.on('error', error => {
+  if (error && error.code === 'EADDRINUSE') return;
+  console.error('Errore WebSocket MirrorPC:', error && error.message ? error.message : error);
+});
 
 function send(ws, message) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
@@ -258,6 +262,15 @@ const heartbeat = setInterval(() => {
 }, 20000);
 
 server.on('close', () => clearInterval(heartbeat));
+server.on('error', error => {
+  if (error && error.code === 'EADDRINUSE') {
+    console.error(`\nMirrorPC risulta gia attivo sulla porta ${PORT}. Apri http://127.0.0.1:${PORT}/\n`);
+    clearInterval(heartbeat);
+    return setTimeout(() => process.exit(0), 10);
+  }
+  console.error('\nErrore durante l\'avvio di MirrorPC:', error && error.message ? error.message : error);
+  process.exitCode = 1;
+});
 server.listen(PORT, '0.0.0.0', () => {
   const local = `http://localhost:${PORT}/`;
   console.log(`\nMirrorPC pronto\nHost: ${local}\nRicevitore LAN: http://${lanAddress()}:${PORT}\n`);
