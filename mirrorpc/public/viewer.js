@@ -251,4 +251,4 @@ document.addEventListener('keydown', event => { if (controlEnabled && !event.rep
 document.addEventListener('keyup', event => { if (controlEnabled) { event.preventDefault(); sendControl({ type: 'key', code: event.code, state: 'up' }); } });
 $('display').addEventListener('pointerdown', () => { document.body.classList.remove('hud-idle'); setTimeout(() => document.body.classList.add('hud-idle'), 4000); $('remoteVideo').play().catch(()=>{}); });
 populateCode(); if (codeValue().length === 6) setTimeout(connect, 350); else if ($('permanentDeviceId').value.length === 12) setTimeout(connectPermanent, 350);
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=7', { updateViaCache: 'none' }).then(registration => registration.update()).catch(()=>{});

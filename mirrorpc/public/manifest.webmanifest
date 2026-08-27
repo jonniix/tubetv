@@ -1,7 +1,7 @@
 {
   "name": "MirrorPC Control",
   "short_name": "MirrorPC",
-  "start_url": "./",
+  "start_url": "./?app=v7",
   "display": "fullscreen",
   "background_color": "#03070c",
   "theme_color": "#07111d",

@@ -7,10 +7,21 @@
   function closeJoin() { clearInterval(timer); timer = 0; stream?.getTracks().forEach(track => track.stop()); stream = null; byId('scannerVideo').srcObject = null; byId('joinDialog').classList.add('hidden'); }
   function join(value) {
     const raw = String(value || ''), device = raw.match(/[?&]device=(\d{12})/) || raw.match(/^\D*(\d{12})\D*$/);
-    if (device) { closeJoin(); location.href = `display.html?device=${device[1]}`; return; }
+    if (device) { findPermanent(device[1]); return; }
     const code = raw.match(/[?&]code=(\d{6})/) || raw.match(/^\D*(\d{6})\D*$/);
     if (!code) return toast('Inserisci un codice di 6 cifre o un ID PC di 12 cifre', true);
     closeJoin(); location.href = `display.html?code=${code[1]}`;
+  }
+  async function findPermanent(value) {
+    const deviceId = String(value || '').replace(/\D/g, '').slice(0, 12);
+    if (deviceId.length !== 12) return toast('Inserisci tutte le 12 cifre dell’ID PC', true);
+    const button = byId('joinPermanent'); button.disabled = true; button.textContent = 'Ricerca…';
+    try {
+      const response = await fetch('api/device.php', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'resolve', deviceId }), cache: 'no-store' });
+      const result = await response.json(); if (!response.ok) throw new Error(result.message);
+      closeJoin(); location.href = `display.html?code=${result.code}`;
+    } catch (error) { toast(error.message || 'PC non raggiungibile', true); }
+    finally { button.disabled = false; button.textContent = 'Trova PC'; }
   }
   async function startCamera() {
     try {
@@ -20,5 +31,6 @@
     } catch { byId('cameraMessage').textContent = 'Fotocamera non disponibile · usa il codice manuale'; }
   }
   byId('openJoin').addEventListener('click', openJoin); byId('openJoinHero').addEventListener('click', openJoin); byId('closeJoin').addEventListener('click', closeJoin); byId('startCamera').addEventListener('click', startCamera); byId('joinManual').addEventListener('click', () => join(byId('manualCode').value)); byId('manualCode').addEventListener('input', event => event.target.value = event.target.value.replace(/\D/g, '').slice(0, 6)); byId('manualCode').addEventListener('keydown', event => { if (event.key === 'Enter') join(event.currentTarget.value); });
-  byId('joinPermanent').addEventListener('click', () => join(byId('permanentPortalId').value)); byId('permanentPortalId').addEventListener('input', event => event.target.value = event.target.value.replace(/\D/g, '').slice(0, 12)); byId('permanentPortalId').addEventListener('keydown', event => { if (event.key === 'Enter') join(event.currentTarget.value); });
+  byId('joinPermanent').addEventListener('click', () => findPermanent(byId('permanentPortalId').value)); byId('permanentPortalId').addEventListener('input', event => event.target.value = event.target.value.replace(/\D/g, '').slice(0, 12)); byId('permanentPortalId').addEventListener('keydown', event => { if (event.key === 'Enter') findPermanent(event.currentTarget.value); });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=7', { updateViaCache: 'none' }).then(registration => registration.update()).catch(()=>{});
 })();
