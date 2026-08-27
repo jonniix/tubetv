@@ -1,7 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-const state = { stream: null, ws: null, session: null, peers: new Map(), statsTimer: null, countdown: null, joinUrl: '', mode: 'mirror', systemDisplay: null };
+const state = { stream: null, ws: null, session: null, peers: new Map(), statsTimer: null, countdown: null, joinUrl: '', mode: 'mirror', systemDisplay: null, permanentRequest: null, starting: false };
 const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 const phpMode = location.pathname.includes('/mirrorpc/');
 const appBase = phpMode ? location.pathname.slice(0, location.pathname.indexOf('/mirrorpc/') + 9) : '';
@@ -99,7 +99,11 @@ function attachSignalHandlers() {
   state.ws.onopen = () => signal({ type: 'host_register', code: state.session.code, token: state.session.token });
   state.ws.onmessage = async event => {
     const msg = JSON.parse(event.data);
-    if (msg.type === 'host_ready') { $('serverStatus').textContent = 'Sessione protetta attiva'; return; }
+    if (msg.type === 'host_ready') {
+      $('serverStatus').textContent = 'Sessione protetta attiva';
+      if (state.permanentRequest) fetch('/api/device/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: state.session.code, requestId: state.permanentRequest.id }) }).catch(() => {});
+      return;
+    }
     if (msg.type === 'viewer_join') {
       const allowed = await authorizeViewer(msg);
       if (!allowed) { signal({ type: 'signal', to: msg.viewerId, data: { accessDenied: true } }); return; }
@@ -245,7 +249,19 @@ function startCountdown(seconds) {
   state.countdown = setInterval(() => { left = Math.max(0, left - 1); $('timer').textContent = `${String(Math.floor(left / 60)).padStart(2,'0')}:${String(left % 60).padStart(2,'0')}`; if (!left) clearInterval(state.countdown); }, 1000);
 }
 
-async function start() {
+async function acquireDisplay(q) {
+  if (window.mirrorPCNative?.captureDesktop) {
+    const sourceId = await window.mirrorPCNative.captureDesktop(state.mode);
+    const video = { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, maxWidth: q.width, maxHeight: q.height, maxFrameRate: Number($('fps').value) } };
+    try { return await navigator.mediaDevices.getUserMedia({ video, audio: { mandatory: { chromeMediaSource: 'desktop' } } }); }
+    catch { return navigator.mediaDevices.getUserMedia({ video, audio: false }); }
+  }
+  return navigator.mediaDevices.getDisplayMedia({ video: { width: { ideal: q.width }, height: { ideal: q.height }, frameRate: { ideal: Number($('fps').value), max: Number($('fps').value) }, cursor: 'always' }, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 }, sampleRate: { ideal: 48000 } }, systemAudio: 'include', windowAudio: 'system', surfaceSwitching: 'include' });
+}
+
+async function start(options = {}) {
+  if (state.starting || state.stream) return;
+  state.starting = true; state.permanentRequest = options.permanentRequest || null;
   try {
     if (state.mode === 'extend' && !state.systemDisplay?.driverInstalled) {
       openExtendDialog(state.systemDisplay?.supported
@@ -255,11 +271,7 @@ async function start() {
     }
     $('startButton').disabled = true; $('startButton').querySelector('span').textContent = 'Seleziona lo schermo…';
     const q = qualityMap[$('quality').value];
-    state.stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { width: { ideal: q.width }, height: { ideal: q.height }, frameRate: { ideal: Number($('fps').value), max: Number($('fps').value) }, cursor: 'always' },
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 }, sampleRate: { ideal: 48000 } },
-      systemAudio: 'include', windowAudio: 'system', surfaceSwitching: 'include'
-    });
+    state.stream = await acquireDisplay(q);
     const audioTrack = state.stream.getAudioTracks()[0];
     $('audioHud').textContent = audioTrack ? 'AUDIO PC ON' : 'AUDIO ASSENTE';
     $('audioHud').classList.toggle('audio-missing', !audioTrack);
@@ -272,7 +284,28 @@ async function start() {
   } catch (error) {
     $('startButton').disabled = false; $('startButton').querySelector('span').textContent = state.mode === 'extend' ? 'Avvia desktop esteso' : 'Avvia duplicazione';
     if (error.name !== 'NotAllowedError') toast(error.message || 'Avvio non riuscito', true);
+    if (state.permanentRequest) fetch('/api/device/reject', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ requestId: state.permanentRequest.id }) }).catch(()=>{});
+    state.permanentRequest = null;
+  } finally {
+    state.starting = false;
   }
+}
+
+async function pollPermanentRequest() {
+  if (!localInstalled || state.stream || state.starting) return;
+  try {
+    const response = await fetch('/api/device/pending', { cache: 'no-store' }); if (!response.ok) return;
+    const result = await response.json(), request = result.request; if (!request || state.permanentRequest?.id === request.id) return;
+    const authResponse = await fetch('/api/device/authorize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ requestId: request.id, challenge: request.challenge, proof: request.proof }) });
+    const auth = await authResponse.json(); let allowed = Boolean(auth.allowed);
+    if (auth.requiresApproval) allowed = await askLocalApproval();
+    if (!allowed || !window.mirrorPCNative?.captureDesktop) {
+      await fetch('/api/device/reject', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ requestId: request.id }) });
+      if (!window.mirrorPCNative?.captureDesktop) toast('Accesso permanente richiede la nuova app nativa Windows', true);
+      return;
+    }
+    await start({ permanentRequest: request });
+  } catch {}
 }
 
 function stop() {
@@ -280,6 +313,7 @@ function stop() {
   state.stream?.getTracks().forEach(t => t.stop()); state.stream = null;
   for (const id of [...state.peers.keys()]) closePeer(id);
   state.ws?.close(); state.ws = null; clearInterval(state.statsTimer); clearInterval(state.countdown);
+  state.permanentRequest = null;
   $('preview').srcObject = null; $('emptyPreview').classList.remove('hidden'); $('liveBadge').className = 'live-badge offline'; $('liveBadge').innerHTML = '<span></span> OFFLINE';
   $('startButton').disabled = false; $('startButton').querySelector('span').textContent = state.mode === 'extend' ? 'Avvia desktop esteso' : 'Avvia duplicazione'; $('stopButton').disabled = true;
   $('qrFrame').classList.add('waiting'); $('code').textContent = '••• •••'; $('viewerCount').textContent = '0'; $('copyLink').disabled = true; $('serverStatus').textContent = 'Server locale pronto';
@@ -312,3 +346,4 @@ $('quality').addEventListener('change', applyQuality); $('fps').addEventListener
 $('copyLink').addEventListener('click', async () => { await navigator.clipboard.writeText(state.joinUrl); toast('Link copiato'); });
 window.addEventListener('beforeunload', () => state.ws?.close());
 refreshDisplayStatus();
+if (localInstalled) setInterval(pollPermanentRequest, 1800);

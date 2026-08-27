@@ -1,47 +1,18 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/lib.php';
-
-$data = request_data();
-$action = (string)($data['action'] ?? '');
-$deviceId = preg_replace('/\D/', '', (string)($data['deviceId'] ?? ''));
-if (!preg_match('/^\d{12}$/', $deviceId)) json_response(['message' => 'ID PC non valido'], 400);
-
-$registryDir = runtime_dir() . '/device-registry';
-if (!is_dir($registryDir) && !mkdir($registryDir, 0700, true) && !is_dir($registryDir)) json_response(['message' => 'Registro dispositivi non disponibile'], 500);
-$devicePath = $registryDir . '/' . hash('sha256', $deviceId) . '.json';
-
-if ($action === 'register') {
-    $token = (string)($data['token'] ?? '');
-    if (!preg_match('/^[A-Za-z0-9_-]{40,64}$/', $token)) json_response(['message' => 'Token dispositivo non valido'], 403);
-    $sessionCode = (string)($data['sessionCode'] ?? '');
-    if ($sessionCode !== '' && !preg_match('/^\d{6}$/', $sessionCode)) json_response(['message' => 'Sessione non valida'], 400);
-    $handle = fopen($devicePath, 'c+');
-    if (!$handle || !flock($handle, LOCK_EX)) json_response(['message' => 'Registro occupato'], 503);
-    rewind($handle); $raw = stream_get_contents($handle); $saved = $raw ? json_decode($raw, true) : null;
-    $tokenHash = hash('sha256', $token);
-    if (is_array($saved) && !safe_equal($saved['tokenHash'] ?? '', $tokenHash)) {
-        flock($handle, LOCK_UN); fclose($handle); json_response(['message' => 'Dispositivo non autorizzato'], 403);
-    }
-    $record = ['deviceId' => $deviceId, 'tokenHash' => $tokenHash, 'sessionCode' => $sessionCode, 'lastSeen' => time()];
-    rewind($handle); ftruncate($handle, 0); fwrite($handle, json_encode($record)); fflush($handle); flock($handle, LOCK_UN); fclose($handle);
-    json_response(['ok' => true, 'registered' => true]);
-}
-
-if ($action === 'resolve') {
-    enforce_join_rate_limit();
-    if (!is_file($devicePath)) json_response(['message' => 'PC non registrato'], 404);
-    $record = json_decode((string)file_get_contents($devicePath), true);
-    if (!is_array($record) || (int)($record['lastSeen'] ?? 0) < time() - 90) json_response(['message' => 'PC offline'], 409);
-    $code = (string)($record['sessionCode'] ?? '');
-    if (!preg_match('/^\d{6}$/', $code)) json_response(['message' => 'PC online, ma nessuna condivisione Ã¨ attiva'], 409);
-    $sessionFile = session_path($code);
-    $session = is_file($sessionFile) ? json_decode((string)file_get_contents($sessionFile), true) : null;
-    if (!is_array($session) || empty($session['hostRegistered']) || (int)($session['expiresAt'] ?? 0) < time()) {
-        json_response(['message' => 'La condivisione del PC non Ã¨ ancora pronta'], 409);
-    }
-    json_response(['ok' => true, 'code' => $code]);
-}
-
-json_response(['message' => 'Azione non valida'], 400);
-
+$data=request_data(); $action=(string)($data['action']??''); $deviceId=preg_replace('/\D/','',(string)($data['deviceId']??''));
+if(!preg_match('/^\d{12}$/',$deviceId)) json_response(['message'=>'ID PC non valido'],400);
+$dir=runtime_dir().'/device-registry'; if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir)) json_response(['message'=>'Registro dispositivi non disponibile'],500);
+$path=$dir.'/'.hash('sha256',$deviceId).'.json';
+function locked_device(string $path,callable $callback):mixed{$h=fopen($path,'c+');if(!$h||!flock($h,LOCK_EX))json_response(['message'=>'Registro occupato'],503);try{rewind($h);$raw=stream_get_contents($h);$record=$raw?json_decode($raw,true):[];if(!is_array($record))$record=[];$result=$callback($record);rewind($h);ftruncate($h,0);fwrite($h,json_encode($record));fflush($h);flock($h,LOCK_UN);return $result;}finally{if(is_resource($h))fclose($h);}}
+function require_device_token(array $record,mixed $token):void{if(!safe_equal($record['tokenHash']??'',hash('sha256',(string)$token)))json_response(['message'=>'Dispositivo non autorizzato'],403);}
+function ready_session(array $record):string{$code=(string)($record['sessionCode']??'');if(!preg_match('/^\d{6}$/',$code))return '';$file=session_path($code);$session=is_file($file)?json_decode((string)file_get_contents($file),true):null;return is_array($session)&&!empty($session['hostRegistered'])&&(int)($session['expiresAt']??0)>=time()?$code:'';}
+if($action==='register'){$token=(string)($data['token']??'');if(!preg_match('/^[A-Za-z0-9_-]{40,64}$/',$token))json_response(['message'=>'Token dispositivo non valido'],403);$code=(string)($data['sessionCode']??'');if($code!==''&&!preg_match('/^\d{6}$/',$code))json_response(['message'=>'Sessione non valida'],400);locked_device($path,function(array &$r)use($deviceId,$token,$code):void{$hash=hash('sha256',$token);if(!empty($r['tokenHash'])&&!safe_equal($r['tokenHash'],$hash))json_response(['message'=>'Dispositivo non autorizzato'],403);$r['deviceId']=$deviceId;$r['tokenHash']=$hash;$r['sessionCode']=$code;$r['lastSeen']=time();if(!empty($r['pending']['createdAt'])&&(int)$r['pending']['createdAt']<time()-120)unset($r['pending']);});json_response(['ok'=>true]);}
+if($action==='begin_request'){enforce_join_rate_limit();if(!is_file($path))json_response(['message'=>'PC non registrato'],404);$result=locked_device($path,function(array &$r):array{if((int)($r['lastSeen']??0)<time()-90)json_response(['message'=>'PC offline'],409);$ready=ready_session($r);if($ready)return['ok'=>true,'ready'=>true,'code'=>$ready];$id=bin2hex(random_bytes(16));$token=rtrim(strtr(base64_encode(random_bytes(24)),'+/','-_'),'=');$challenge=rtrim(strtr(base64_encode(random_bytes(24)),'+/','-_'),'=');$r['pending']=['id'=>$id,'tokenHash'=>hash('sha256',$token),'challenge'=>$challenge,'proof'=>'','status'=>'challenge','createdAt'=>time()];return['ok'=>true,'ready'=>false,'requestId'=>$id,'requestToken'=>$token,'challenge'=>$challenge];});json_response($result);}
+if($action==='submit_request'){$result=locked_device($path,function(array &$r)use($data):array{$p=$r['pending']??[];if(!safe_equal($p['id']??'',$data['requestId']??'')||!safe_equal($p['tokenHash']??'',hash('sha256',(string)($data['requestToken']??''))))json_response(['message'=>'Richiesta non valida'],403);$proof=strtolower((string)($data['proof']??''));if($proof!==''&&!preg_match('/^[a-f0-9]{64}$/',$proof))json_response(['message'=>'Prova password non valida'],400);$r['pending']['proof']=$proof;$r['pending']['status']='pending';return['ok'=>true];});json_response($result);}
+if($action==='poll'){$result=locked_device($path,function(array &$r)use($data):array{require_device_token($r,$data['token']??'');$p=$r['pending']??[];if(($p['status']??'')!=='pending')return['ok'=>true,'request'=>null];return['ok'=>true,'request'=>['id'=>$p['id'],'challenge'=>$p['challenge'],'proof'=>$p['proof']??'','createdAt'=>$p['createdAt']]];});json_response($result);}
+if($action==='complete'||$action==='reject'){$result=locked_device($path,function(array &$r)use($action,$data):array{require_device_token($r,$data['token']??'');$p=$r['pending']??[];if(!safe_equal($p['id']??'',$data['requestId']??''))json_response(['message'=>'Richiesta non trovata'],404);if($action==='complete'){$code=(string)($data['sessionCode']??'');if(!preg_match('/^\d{6}$/',$code))json_response(['message'=>'Sessione non valida'],400);$r['pending']['status']='ready';$r['pending']['sessionCode']=$code;}else$r['pending']['status']='rejected';return['ok'=>true];});json_response($result);}
+if($action==='request_status'){$result=locked_device($path,function(array &$r)use($data):array{$p=$r['pending']??[];if(!safe_equal($p['id']??'',$data['requestId']??'')||!safe_equal($p['tokenHash']??'',hash('sha256',(string)($data['requestToken']??''))))json_response(['message'=>'Richiesta non valida'],403);if(($p['status']??'')==='rejected')json_response(['message'=>'Collegamento rifiutato dal PC'],403);if(($p['status']??'')==='ready')return['ok'=>true,'ready'=>true,'code'=>$p['sessionCode']];return['ok'=>true,'ready'=>false];});json_response($result);}
+if($action==='resolve'){enforce_join_rate_limit();if(!is_file($path))json_response(['message'=>'PC non registrato'],404);$r=json_decode((string)file_get_contents($path),true);if(!is_array($r)||(int)($r['lastSeen']??0)<time()-90)json_response(['message'=>'PC offline'],409);$code=ready_session($r);if(!$code)json_response(['message'=>'PC online, ma nessuna condivisione è attiva'],409);json_response(['ok'=>true,'code'=>$code]);}
+json_response(['message'=>'Azione non valida'],400);

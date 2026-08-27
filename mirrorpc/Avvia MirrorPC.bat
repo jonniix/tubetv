@@ -34,6 +34,11 @@ exit /b 1
 
 :open_app
 echo Apro MirrorPC come applicazione...
+set "ELECTRON=%~dp0node_modules\electron\dist\electron.exe"
+if exist "%ELECTRON%" (
+  start "" "%ELECTRON%" "%~dp0"
+  exit /b 0
+)
 set "EDGE=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
 if not exist "%EDGE%" set "EDGE=%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
 if exist "%EDGE%" (

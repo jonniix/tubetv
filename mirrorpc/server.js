@@ -59,6 +59,13 @@ async function registerCloudDevice() {
   } catch { return false; }
 }
 
+async function cloudDeviceCall(payload) {
+  const response = await fetch(cloudDeviceEndpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...payload, deviceId: deviceConfig.id, token: deviceConfig.cloudToken }) });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.message || 'Relay dispositivo non disponibile');
+  return result;
+}
+
 app.disable('x-powered-by');
 app.get(['/', '/control'], (req, res) => res.sendFile(path.join(__dirname, 'control.html')));
 app.use(express.json({ limit: '32kb' }));
@@ -134,12 +141,12 @@ app.post('/api/device/authorize', (req, res) => {
   if (!isLoopback(req)) return res.status(403).json({ ok: false, message: 'Verifica consentita soltanto all’app locale' });
   if (!deviceConfig.unattended) return res.json({ ok: true, allowed: false, requiresApproval: true });
   const challenge = String(req.body?.challenge || '');
-  const code = String(req.body?.code || '');
+  const code = String(req.body?.code || ''), requestId = String(req.body?.requestId || '');
   const proof = normalizeProof(req.body?.proof);
-  if (!challenge || !/^\d{6}$/.test(code) || !proof || !deviceConfig.passwordVerifier) {
+  if (!challenge || (!/^\d{6}$/.test(code) && !/^[a-f0-9]{32}$/.test(requestId)) || !proof || !deviceConfig.passwordVerifier) {
     return res.json({ ok: true, allowed: false, requiresApproval: false, message: 'Password richiesta o non valida' });
   }
-  const expected = crypto.createHmac('sha256', Buffer.from(deviceConfig.passwordVerifier, 'hex')).update(`${code}:${challenge}`).digest('hex');
+  const expected = crypto.createHmac('sha256', Buffer.from(deviceConfig.passwordVerifier, 'hex')).update(`${code || requestId}:${challenge}`).digest('hex');
   const allowed = safeTokenEqual(expected, proof);
   res.json({ ok: true, allowed, requiresApproval: false, message: allowed ? '' : 'Password non valida' });
 });
@@ -150,7 +157,21 @@ app.post('/api/device/session', (req, res) => {
   if (code && !/^\d{6}$/.test(code)) return res.status(400).json({ ok: false, message: 'Codice sessione non valido' });
   activeSessionCode = code;
   registerCloudDevice().then(ok => { if (!ok) console.error('Registro ID MirrorPC temporaneamente non raggiungibile'); });
+  const requestId = String(req.body?.requestId || '');
+  if (requestId && code) cloudDeviceCall({ action: 'complete', requestId, sessionCode: code }).catch(error => console.error(error.message));
   res.json({ ok: true, deviceId: deviceConfig.id, sessionCode: activeSessionCode });
+});
+
+app.get('/api/device/pending', async (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ ok: false, message: 'Richieste disponibili soltanto nell’app locale' });
+  try { const result = await cloudDeviceCall({ action: 'poll' }); res.json({ ...result, unattended: Boolean(deviceConfig.unattended), nativeCaptureRequired: true }); }
+  catch (error) { res.status(503).json({ ok: false, message: error.message }); }
+});
+
+app.post('/api/device/reject', async (req, res) => {
+  if (!isLoopback(req)) return res.status(403).json({ ok: false, message: 'Comando consentito soltanto nell’app locale' });
+  try { await cloudDeviceCall({ action: 'reject', requestId: String(req.body?.requestId || '') }); res.json({ ok: true }); }
+  catch (error) { res.status(400).json({ ok: false, message: error.message }); }
 });
 
 function isLoopback(req) {

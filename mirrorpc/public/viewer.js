@@ -39,10 +39,18 @@ async function connectPermanent() {
   if (deviceId.length !== 12) return toast('Inserisci tutte le 12 cifre dell’ID PC', true);
   $('connectPermanent').disabled = true; $('connectPermanent').textContent = 'Ricerca…';
   try {
-    const response = await fetch(`${cloudBase}/api/device.php`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'resolve', deviceId }), cache: 'no-store' });
-    const result = await response.json(); if (!response.ok) throw new Error(result.message);
-    inputs.forEach((input, index) => input.value = result.code[index]);
-    toast('PC trovato · collegamento alla sessione'); await connect();
+    let response = await fetch(`${cloudBase}/api/device.php`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'begin_request', deviceId }), cache: 'no-store' });
+    let result = await response.json(); if (!response.ok) throw new Error(result.message);
+    if (!result.ready) {
+      const proof = await accessProof(result.requestId, result.challenge);
+      response = await fetch(`${cloudBase}/api/device.php`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'submit_request', deviceId, requestId: result.requestId, requestToken: result.requestToken, proof }), cache: 'no-store' });
+      const submitted = await response.json(); if (!response.ok) throw new Error(submitted.message);
+      $('connectPermanent').textContent = 'Attendo il PC…';
+      let ready = null;
+      for (let attempt = 0; attempt < 45; attempt++) { await new Promise(resolve => setTimeout(resolve, 1000)); response = await fetch(`${cloudBase}/api/device.php`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'request_status', deviceId, requestId: result.requestId, requestToken: result.requestToken }), cache: 'no-store' }); const status = await response.json(); if (!response.ok) throw new Error(status.message); if (status.ready) { ready = status; break; } }
+      if (!ready) throw new Error('Il PC non ha risposto entro 45 secondi'); result = ready;
+    }
+    inputs.forEach((input, index) => input.value = result.code[index]); toast('PC pronto · collegamento in corso'); await connect();
   } catch (error) { toast(error.message || 'PC non raggiungibile', true); }
   finally { $('connectPermanent').disabled = false; $('connectPermanent').textContent = 'Trova PC'; }
 }
@@ -251,4 +259,4 @@ document.addEventListener('keydown', event => { if (controlEnabled && !event.rep
 document.addEventListener('keyup', event => { if (controlEnabled) { event.preventDefault(); sendControl({ type: 'key', code: event.code, state: 'up' }); } });
 $('display').addEventListener('pointerdown', () => { document.body.classList.remove('hud-idle'); setTimeout(() => document.body.classList.add('hud-idle'), 4000); $('remoteVideo').play().catch(()=>{}); });
 populateCode(); if (codeValue().length === 6) setTimeout(connect, 350); else if ($('permanentDeviceId').value.length === 12) setTimeout(connectPermanent, 350);
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=7', { updateViaCache: 'none' }).then(registration => registration.update()).catch(()=>{});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=8', { updateViaCache: 'none' }).then(registration => registration.update()).catch(()=>{});
