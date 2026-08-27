@@ -36,6 +36,7 @@ exit /b 1
 echo Apro MirrorPC come applicazione...
 set "ELECTRON=%~dp0node_modules\electron\dist\electron.exe"
 if exist "%ELECTRON%" (
+  set "ELECTRON_RUN_AS_NODE="
   start "" "%ELECTRON%" "%~dp0"
   exit /b 0
 )

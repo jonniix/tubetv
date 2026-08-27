@@ -42,6 +42,8 @@ echo  Installazione dei componenti locali...
 pushd "%INSTALL_DIR%"
 call npm install --omit=dev
 if errorlevel 1 (popd & goto :failed)
+if not exist "node_modules\electron\dist\electron.exe" node "node_modules\electron\install.js"
+if errorlevel 1 (popd & goto :failed)
 popd
 
 echo  Creazione collegamento sul Desktop...
